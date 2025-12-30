@@ -1,0 +1,8 @@
+
+{
+  "name": "MƆ̆TTO",
+  "description": "Une marketplace mobile-first moderne pour l'achat et la vente de voitures, motos et accessoires avec options de boost et chat intégré.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
