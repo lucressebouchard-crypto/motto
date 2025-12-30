@@ -6,7 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "supabase:test": "node scripts/setup-supabase.js test",
+    "supabase:verify": "node scripts/setup-supabase.js verify",
+    "supabase:schema": "node scripts/setup-supabase.js schema",
+    "supabase:exec-schema": "node scripts/execute-schema.js show",
+    "supabase:stats": "node scripts/supabase-automation.js stats",
+    "supabase:list-users": "node scripts/supabase-automation.js list-users",
+    "supabase:list-listings": "node scripts/supabase-automation.js list-listings",
+    "supabase:setup-rpc": "node scripts/db-manager.js setup",
+    "supabase:service-role": "node scripts/setup-service-role.js",
+    "vercel:list-projects": "node scripts/vercel-automation.js list-projects"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
