@@ -138,36 +138,44 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<User | null> {
-    console.log('🔍 [getCurrentUser] Getting auth user...');
+    console.log('🔍 [getCurrentUser] Getting session...');
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Utiliser getSession() au lieu de getUser() car il est plus fiable immédiatement après connexion
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    if (authError) {
-      console.error('❌ [getCurrentUser] Auth error:', authError);
+    if (sessionError) {
+      console.error('❌ [getCurrentUser] Session error:', sessionError);
       return null;
     }
     
-    if (!user) {
-      console.log('ℹ️ [getCurrentUser] No authenticated user');
+    if (!session?.user) {
+      console.log('ℹ️ [getCurrentUser] No active session');
       return null;
     }
 
-    console.log('✅ [getCurrentUser] Auth user found:', user.id);
+    const user = session.user;
+    console.log('✅ [getCurrentUser] Session found, user ID:', user.id);
     console.log('🔍 [getCurrentUser] Fetching profile from users table...');
 
+    // Utiliser maybeSingle() au lieu de single() pour éviter les erreurs si le profil n'existe pas
     const { data: profile, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('❌ [getCurrentUser] Profile fetch error:', error);
       console.error('Error details:', { code: error.code, message: error.message });
       
-      // Si le profil n'existe pas (utilisateur créé dans Auth mais pas dans users)
-      if (error.code === 'PGRST116') {
-        console.warn('⚠️ [getCurrentUser] User exists in Auth but not in users table. Creating profile...');
+      // Si erreur réseau ou autre erreur inattendue
+      console.error('❌ [getCurrentUser] Unexpected error, throwing...');
+      throw error;
+    }
+    
+    // Si le profil n'existe pas (maybeSingle retourne null sans erreur)
+    if (!profile) {
+      console.warn('⚠️ [getCurrentUser] User exists in Auth but not in users table. Creating profile...');
         // Essayer de créer le profil avec les données de base
         const profileData = {
           id: user.id,
@@ -194,10 +202,6 @@ export const authService = {
         console.log('✅ [getCurrentUser] Profile created successfully');
         return newProfile ? mapUserFromDB(newProfile) : null;
       }
-      
-      console.error('❌ [getCurrentUser] Unexpected error, throwing...');
-      throw error;
-    }
     
     console.log('✅ [getCurrentUser] Profile found:', profile.id);
     return profile ? mapUserFromDB(profile) : null;
