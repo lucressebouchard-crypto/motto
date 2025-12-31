@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, User, ShoppingBag, Mail, Lock, Phone, Store, ShieldCheck, Wrench, ArrowRight, Car } from 'lucide-react';
 import { User as UserType, UserRole } from '../types';
+import { authService } from '../services/authService';
 import Logo from './Logo';
 
 interface AuthPageProps {
@@ -14,38 +15,87 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
   const [registerStep, setRegisterStep] = useState<'type' | 'form'>('type');
   const [role, setRole] = useState<UserRole>('buyer');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
+    confirmPassword: '',
     shopName: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    // Simulation d'appel API
-    await new Promise(r => setTimeout(r, 1200));
-    
-    const mockUser: UserType = {
-      id: 'u' + Math.random().toString(36).substr(2, 5),
-      name: mode === 'login' ? 'Utilisateur Démo' : formData.name,
-      email: formData.email,
-      role: mode === 'login' ? 'buyer' : role,
-      avatar: `https://i.pravatar.cc/150?u=${formData.email}`,
-      phoneNumber: formData.phone,
-      shopName: (role === 'seller' || role === 'mechanic') ? formData.shopName : undefined,
-      isVerified: role === 'seller' || role === 'mechanic',
-      rating: role === 'mechanic' ? 5.0 : undefined,
-      completedInspections: role === 'mechanic' ? 0 : undefined,
-      specialties: role === 'mechanic' ? ['Expert Multi-marques'] : undefined,
-      hourlyRate: role === 'mechanic' ? 10000 : undefined
-    };
-    
-    onSuccess(mockUser);
+    setError(null);
+
+    try {
+      const { data, error: signInError } = await authService.signIn({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (signInError) throw signInError;
+
+      // Récupérer le profil utilisateur
+      const user = await authService.getCurrentUser();
+      if (user) {
+        onSuccess(user);
+      } else {
+        throw new Error('Impossible de récupérer le profil utilisateur');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la connexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    // Validation
+    if (formData.password !== formData.confirmPassword) {
+      setError('Les mots de passe ne correspondent pas');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Le mot de passe doit contenir au moins 6 caractères');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { profile, error: signUpError } = await authService.signUp({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        role: role,
+        phoneNumber: formData.phone || undefined,
+        shopName: (role === 'seller' || role === 'mechanic') ? formData.shopName : undefined,
+      });
+
+      if (signUpError) throw signUpError;
+
+      // Le profil est déjà dans le bon format depuis authService
+      // Mais on doit récupérer l'utilisateur complet depuis getCurrentUser
+      const user = await authService.getCurrentUser();
+      if (user) {
+        onSuccess(user);
+      } else {
+        throw new Error('Impossible de récupérer le profil utilisateur');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de l\'inscription');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,9 +124,15 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
         </div>
 
         <div className="bg-white rounded-[40px] shadow-2xl shadow-indigo-900/10 p-8 border border-gray-50 flex-1 flex flex-col">
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-bold">
+              {error}
+            </div>
+          )}
+          
           {mode === 'login' ? (
             /* LOGIN FORM */
-            <form onSubmit={handleSubmit} className="space-y-6 flex flex-col flex-1">
+            <form onSubmit={handleLogin} className="space-y-6 flex flex-col flex-1">
               <Input 
                 label="Email" 
                 icon={<Mail size={18}/>} 
@@ -139,10 +195,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
                 />
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-5 animate-in fade-in slide-in-from-right duration-300">
+              <form onSubmit={handleRegister} className="space-y-5 animate-in fade-in slide-in-from-right duration-300">
                 <button 
                   type="button" 
-                  onClick={() => setRegisterStep('type')} 
+                  onClick={() => {
+                    setRegisterStep('type');
+                    setError(null);
+                  }} 
                   className="text-[10px] font-black uppercase text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1 mb-2"
                 >
                   <ArrowRight size={12} className="rotate-180" /> Retour au choix du profil
@@ -151,6 +210,8 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
                 <Input label="Nom complet" icon={<User size={18}/>} placeholder="Jean Marc" value={formData.name} onChange={v => setFormData({...formData, name: v})} required />
                 <Input label="Email" icon={<Mail size={18}/>} placeholder="jean@mail.com" type="email" value={formData.email} onChange={v => setFormData({...formData, email: v})} required />
                 <Input label="Téléphone" icon={<Phone size={18}/>} placeholder="+225 07..." value={formData.phone} onChange={v => setFormData({...formData, phone: v})} required />
+                <Input label="Mot de passe" icon={<Lock size={18}/>} placeholder="••••••••" type="password" value={formData.password} onChange={v => setFormData({...formData, password: v})} required />
+                <Input label="Confirmer le mot de passe" icon={<Lock size={18}/>} placeholder="••••••••" type="password" value={formData.confirmPassword} onChange={v => setFormData({...formData, confirmPassword: v})} required />
                 
                 {(role === 'seller' || role === 'mechanic') && (
                   <Input label={role === 'mechanic' ? "Nom de l'atelier" : "Nom de la boutique"} icon={<Store size={18}/>} placeholder="Expert Méca Pro" value={formData.shopName} onChange={v => setFormData({...formData, shopName: v})} required />
@@ -178,6 +239,15 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
               onClick={() => {
                 setMode(mode === 'login' ? 'register' : 'login');
                 setRegisterStep('type');
+                setError(null);
+                setFormData({
+                  name: '',
+                  email: '',
+                  phone: '',
+                  password: '',
+                  confirmPassword: '',
+                  shopName: '',
+                });
               }}
               className="mt-2 text-indigo-600 font-black text-sm uppercase tracking-widest hover:underline"
             >

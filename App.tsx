@@ -2,7 +2,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Home, Car, Bike, Package, User as UserIcon, Bell, MessageCircle, Plus, Wrench } from 'lucide-react';
 import { Listing, Category, User } from './types';
-import { MOCK_LISTINGS, MOCK_MECHANICS } from './mockData';
+import { MOCK_MECHANICS } from './mockData';
+import { authService } from './services/authService';
+import { listingService } from './services/listingService';
 import Feed from './components/Feed';
 import MechanicFeed from './components/MechanicFeed';
 import CreateListingModal from './components/CreateListingModal';
@@ -20,40 +22,90 @@ const App: React.FC = () => {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [listings, setListings] = useState<Listing[]>(MOCK_LISTINGS);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loadingListings, setLoadingListings] = useState(true);
   const [mechanics] = useState<User[]>(MOCK_MECHANICS);
   const [showChats, setShowChats] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
 
+  // Charger l'utilisateur et les listings depuis Supabase au démarrage
   useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        if (user) {
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'utilisateur:', error);
+      }
+    };
+
+    loadUser();
+
+    // Écouter les changements d'authentification
+    const { data: { subscription } } = authService.onAuthStateChange((user) => {
+      setCurrentUser(user);
+      if (!user) {
+        // Si l'utilisateur se déconnecte, nettoyer le localStorage
+        localStorage.removeItem('motto_user');
+      }
+    });
+
+    // Charger les favoris depuis le localStorage (sera remplacé par Supabase plus tard)
     const savedFavs = localStorage.getItem('motto_favs');
     if (savedFavs) setFavorites(JSON.parse(savedFavs));
-    const savedUser = localStorage.getItem('motto_user');
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => localStorage.setItem('motto_favs', JSON.stringify(favorites)), [favorites]);
-  useEffect(() => {
-    if (currentUser) localStorage.setItem('motto_user', JSON.stringify(currentUser));
-    else localStorage.removeItem('motto_user');
-  }, [currentUser]);
 
   const toggleFavorite = (id: string) => {
     setFavorites(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
   };
 
+  // Charger et recharger les listings quand l'onglet ou la recherche change
+  useEffect(() => {
+    const loadListings = async () => {
+      try {
+        setLoadingListings(true);
+        let category: Category | undefined;
+        
+        if (activeTab === 'cars') category = Category.CAR;
+        else if (activeTab === 'motos') category = Category.MOTO;
+        else if (activeTab === 'accessories') category = Category.ACCESSORY;
+        
+        const loadedListings = await listingService.getAll({
+          category,
+          searchQuery: searchQuery || undefined,
+        });
+        setListings(loadedListings);
+      } catch (error) {
+        console.error('Erreur lors du chargement des annonces:', error);
+        setListings([]);
+      } finally {
+        setLoadingListings(false);
+      }
+    };
+
+    loadListings();
+  }, [activeTab, searchQuery]);
+
   const filteredListings = useMemo(() => {
+    // Si on charge depuis Supabase, on a déjà les filtres appliqués
+    // Mais on peut encore filtrer localement pour le searchQuery si besoin
     return listings.filter(l => {
-      const matchesSearch = l.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            l.location.toLowerCase().includes(searchQuery.toLowerCase());
-      if (activeTab === 'home') return matchesSearch;
-      if (activeTab === 'cars') return matchesSearch && l.category === Category.CAR;
-      if (activeTab === 'motos') return matchesSearch && l.category === Category.MOTO;
-      if (activeTab === 'accessories') return matchesSearch && l.category === Category.ACCESSORY;
-      return matchesSearch;
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return l.title.toLowerCase().includes(query) || 
+             l.location.toLowerCase().includes(query) ||
+             l.description.toLowerCase().includes(query);
     });
-  }, [listings, searchQuery, activeTab]);
+  }, [listings, searchQuery]);
 
   const resetViews = () => {
     setShowChats(false);
@@ -133,11 +185,34 @@ const App: React.FC = () => {
             currentUser.role === 'mechanic' ? (
               <MechanicDashboard 
                 user={currentUser} 
-                onLogout={() => {setCurrentUser(null); setActiveTab('home');}} 
+                onLogout={async () => {
+                  try {
+                    await authService.signOut();
+                    setCurrentUser(null);
+                    setActiveTab('home');
+                  } catch (error) {
+                    console.error('Erreur lors de la déconnexion:', error);
+                  }
+                }} 
                 onExit={() => setActiveTab('home')}
               />
             ) : (
-              <Dashboard user={currentUser} listings={listings} onBoost={(id) => setListings(prev => prev.map(l => l.id === id ? {...l, isBoosted: true} : l))} favorites={favorites} onToggleFavorite={toggleFavorite} onSelectListing={setSelectedListing} onLogout={() => {setCurrentUser(null); setActiveTab('home');}} />
+              <Dashboard user={currentUser} listings={listings} onBoost={async (id) => {
+                try {
+                  const boosted = await listingService.boost(id);
+                  setListings(prev => prev.map(l => l.id === id ? boosted : l));
+                } catch (error) {
+                  console.error('Erreur lors du boost:', error);
+                }
+              }} favorites={favorites} onToggleFavorite={toggleFavorite} onSelectListing={setSelectedListing} onLogout={async () => {
+                try {
+                  await authService.signOut();
+                  setCurrentUser(null);
+                  setActiveTab('home');
+                } catch (error) {
+                  console.error('Erreur lors de la déconnexion:', error);
+                }
+              }} />
             )
           ) : selectedListing ? (
             <ListingDetails 
@@ -181,7 +256,24 @@ const App: React.FC = () => {
         </nav>
       )}
 
-      {showCreateModal && <CreateListingModal onClose={() => setShowCreateModal(false)} onSubmit={(nl) => setListings([nl, ...listings])} />}
+      {showCreateModal && <CreateListingModal 
+        onClose={() => setShowCreateModal(false)} 
+        onSubmit={async (nl) => {
+          try {
+            // Si c'est une nouvelle annonce créée (avec un ID), l'ajouter à la liste
+            if (nl.id) {
+              setListings([nl, ...listings]);
+            } else {
+              // Recharger toutes les annonces depuis Supabase
+              const allListings = await listingService.getAll();
+              setListings(allListings);
+            }
+          } catch (error) {
+            console.error('Erreur lors de la création de l\'annonce:', error);
+          }
+        }} 
+        currentUser={currentUser}
+      />}
     </div>
   );
 };

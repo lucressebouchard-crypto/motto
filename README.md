@@ -10,14 +10,14 @@ Une marketplace mobile-first moderne pour l'achat et la vente de voitures, motos
 
 - **Frontend**: React 19 + TypeScript + Vite
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime)
-- **Hébergement**: Vercel
+- **Hébergement**: Cloudflare Pages (gratuit)
 - **Mobile**: Capacitor (à venir)
 
 ## 📋 Prérequis
 
 - Node.js 18+ 
-- Compte Supabase
-- Compte Vercel (pour le déploiement)
+- Compte Supabase (gratuit)
+- Compte Cloudflare (gratuit, pour le déploiement)
 
 ## 🛠️ Installation locale
 
@@ -64,21 +64,29 @@ L'application sera accessible sur http://localhost:3000
 - **quotes** : Devis des mécaniciens
 - **favorites** : Favoris des utilisateurs
 
-## 🚢 Déploiement sur Vercel
+## 🚢 Déploiement sur Cloudflare Pages
 
-1. **Connecter le dépôt GitHub à Vercel**
-   - Allez sur [Vercel](https://vercel.com)
-   - Importez le dépôt GitHub
-   - Vercel détectera automatiquement la configuration Vite
+1. **Connecter le dépôt GitHub à Cloudflare Pages**
+   - Allez sur [Cloudflare Dashboard](https://dash.cloudflare.com)
+   - Allez dans **Pages** > **Create a project**
+   - Connectez votre compte GitHub et sélectionnez le dépôt `motto`
 
-2. **Configurer les variables d'environnement sur Vercel**
-   - Dans les paramètres du projet Vercel, ajoutez :
+2. **Configurer le build**
+   - **Framework preset**: Vite
+   - **Build command**: `npm run build`
+   - **Build output directory**: `dist`
+
+3. **Configurer les variables d'environnement**
+   - Dans **Settings** > **Environment variables**, ajoutez :
      - `VITE_SUPABASE_URL`
      - `VITE_SUPABASE_ANON_KEY`
      - `GEMINI_API_KEY` (si nécessaire)
 
-3. **Déployer**
-   - Vercel déploiera automatiquement à chaque push sur la branche principale
+4. **Déployer**
+   - Cloudflare Pages déploiera automatiquement à chaque push sur la branche principale
+   - Votre site sera disponible sur `motto.pages.dev` (ou votre domaine personnalisé)
+
+Consultez [DEPLOYMENT.md](./DEPLOYMENT.md) pour le guide complet.
 
 ## 📱 Mobile (à venir)
 

@@ -7,6 +7,7 @@ import ListingCard from './ListingCard';
 interface FeedProps {
   activeTab: string;
   listings: Listing[];
+  loading?: boolean;
   onSelectListing: (listing: Listing) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -14,7 +15,7 @@ interface FeedProps {
   onToggleFavorite: (id: string) => void;
 }
 
-const Feed: React.FC<FeedProps> = ({ activeTab, listings, onSelectListing, searchQuery, setSearchQuery, favorites, onToggleFavorite }) => {
+const Feed: React.FC<FeedProps> = ({ activeTab, listings, loading = false, onSelectListing, searchQuery, setSearchQuery, favorites, onToggleFavorite }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<ItemStatus | 'all'>('all');
   const [filterSeller, setFilterSeller] = useState<SellerType | 'all'>('all');
@@ -106,7 +107,12 @@ const Feed: React.FC<FeedProps> = ({ activeTab, listings, onSelectListing, searc
           {isHomePage ? 'Dernières arrivées' : `Toutes les ${activeTab === 'cars' ? 'Voitures' : activeTab === 'motos' ? 'Motos' : 'Accessoires'}`}
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {filtered.length > 0 ? (
+          {loading ? (
+            <div className="col-span-full text-center py-32">
+              <div className="inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-gray-400 font-bold">Chargement des annonces...</p>
+            </div>
+          ) : filtered.length > 0 ? (
             filtered.map(listing => (
               <div 
                 key={listing.id} 

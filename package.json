@@ -15,8 +15,7 @@
     "supabase:list-users": "node scripts/supabase-automation.js list-users",
     "supabase:list-listings": "node scripts/supabase-automation.js list-listings",
     "supabase:setup-rpc": "node scripts/db-manager.js setup",
-    "supabase:service-role": "node scripts/setup-service-role.js",
-    "vercel:list-projects": "node scripts/vercel-automation.js list-projects"
+    "supabase:service-role": "node scripts/setup-service-role.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",

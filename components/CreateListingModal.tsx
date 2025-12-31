@@ -1,14 +1,16 @@
 
 import React, { useState } from 'react';
 import { X, Camera, Upload, CheckCircle2, Loader2, Rocket, Info, Star } from 'lucide-react';
-import { Category, Listing, ItemStatus } from '../types';
+import { Category, Listing, ItemStatus, User } from '../types';
+import { listingService } from '../services/listingService';
 
 interface CreateListingModalProps {
   onClose: () => void;
   onSubmit: (listing: Listing) => void;
+  currentUser: User | null;
 }
 
-const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubmit }) => {
+const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubmit, currentUser }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isBoosted, setIsBoosted] = useState(false);
@@ -27,36 +29,52 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!currentUser) {
+      alert('Vous devez être connecté pour créer une annonce');
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const newListing: Listing = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: formData.title,
-      price: parseFloat(formData.price),
-      category: formData.category,
-      images: ['https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=800&q=80'], // Placeholder
-      year: formData.year,
-      mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
-      color: formData.color,
-      condition: formData.condition,
-      description: formData.description,
-      sellerId: 'u1',
-      sellerType: 'individual',
-      status: formData.status,
-      location: formData.location || 'Abidjan, CI',
-      isBoosted: isBoosted,
-      createdAt: Date.now()
-    };
-    
-    onSubmit(newListing);
-    setIsSubmitting(false);
-    setIsSuccess(true);
-    
-    // Auto close after 2 seconds
-    setTimeout(onClose, 2000);
+    try {
+      const newListing = await listingService.create({
+        title: formData.title,
+        price: parseFloat(formData.price),
+        category: formData.category,
+        images: ['https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=800&q=80'], // Placeholder
+        year: formData.year,
+        mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
+        color: formData.color,
+        condition: formData.condition,
+        description: formData.description,
+        sellerId: currentUser.id,
+        sellerType: currentUser.role === 'seller' ? 'pro' : 'individual',
+        status: formData.status,
+        location: formData.location || 'Abidjan, CI',
+      });
+      
+      // Si boost activé, le faire après la création
+      if (isBoosted && newListing.id) {
+        try {
+          await listingService.boost(newListing.id);
+          newListing.isBoosted = true;
+        } catch (error) {
+          console.error('Erreur lors du boost:', error);
+        }
+      }
+      
+      onSubmit(newListing);
+      setIsSubmitting(false);
+      setIsSuccess(true);
+      
+      // Auto close after 2 seconds
+      setTimeout(onClose, 2000);
+    } catch (error: any) {
+      console.error('Erreur lors de la création de l\'annonce:', error);
+      alert(error.message || 'Erreur lors de la création de l\'annonce');
+      setIsSubmitting(false);
+    }
   };
 
   if (isSuccess) {
