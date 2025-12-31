@@ -1,5 +1,8 @@
 -- Fix: Add missing INSERT policy for users table
-CREATE POLICY IF NOT EXISTS "Users can create their own profile" 
+-- Supprimer la policy si elle existe déjà (pour éviter les doublons)
+DROP POLICY IF EXISTS "Users can create their own profile" ON users;
+
+CREATE POLICY "Users can create their own profile" 
 ON users FOR INSERT 
 WITH CHECK (auth.uid() = id);
 

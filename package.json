@@ -15,6 +15,7 @@
     "supabase:list-users": "node scripts/supabase-automation.js list-users",
     "supabase:list-listings": "node scripts/supabase-automation.js list-listings",
     "supabase:setup-rpc": "node scripts/db-manager.js setup",
+    "supabase:fix-users": "node scripts/fix-users-policy.js",
     "supabase:service-role": "node scripts/setup-service-role.js"
   },
   "dependencies": {
