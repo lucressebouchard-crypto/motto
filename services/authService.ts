@@ -46,6 +46,7 @@ export const authService = {
       .select();
 
     if (profileError) {
+      console.error('Error creating user profile:', profileError);
       // Si le profil existe déjà (peut arriver avec email confirmation), on le récupère
       if (profileError.code === '23505') { // Violation de contrainte unique
         const { data: existingProfile, error: fetchError } = await supabase
@@ -54,8 +55,15 @@ export const authService = {
           .eq('id', authData.user.id)
           .single();
         
-        if (fetchError) throw fetchError;
+        if (fetchError) {
+          console.error('Error fetching existing profile:', fetchError);
+          throw fetchError;
+        }
         return { user: authData.user, profile: existingProfile };
+      }
+      // Si erreur RLS (permission denied), donner un message plus explicite
+      if (profileError.code === '42501' || profileError.message?.includes('permission')) {
+        throw new Error('Erreur de permission. La policy INSERT pour la table users est manquante. Veuillez exécuter le script SQL de correction.');
       }
       throw profileError;
     }

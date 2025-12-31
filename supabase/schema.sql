@@ -131,6 +131,7 @@ ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
 
 -- Users policies
 CREATE POLICY "Users can view all profiles" ON users FOR SELECT USING (true);
+CREATE POLICY "Users can create their own profile" ON users FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can update their own profile" ON users FOR UPDATE USING (auth.uid() = id);
 
 -- Listings policies
