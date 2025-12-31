@@ -49,10 +49,10 @@ export const authService = {
     return { user: authData.user, profile };
   },
 
-  async signIn(data: SignInData) {
+  async signIn(signInData: SignInData) {
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
+      email: signInData.email,
+      password: signInData.password,
     });
 
     if (error) throw error;
