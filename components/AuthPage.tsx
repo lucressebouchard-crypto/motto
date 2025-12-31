@@ -32,23 +32,37 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
     setError(null);
 
     try {
+      console.log('🔄 [AuthPage] Starting login process...');
+      
       const { data, error: signInError } = await authService.signIn({
         email: formData.email,
         password: formData.password,
       });
 
-      if (signInError) throw signInError;
+      if (signInError) {
+        console.error('❌ [AuthPage] SignIn error:', signInError);
+        throw signInError;
+      }
+
+      console.log('✅ [AuthPage] SignIn successful, fetching user profile...');
 
       // Récupérer le profil utilisateur
       const user = await authService.getCurrentUser();
+      
+      console.log('📋 [AuthPage] getCurrentUser returned:', user ? 'user found' : 'null');
+      
       if (user) {
+        console.log('✅ [AuthPage] Login complete, calling onSuccess');
         onSuccess(user);
       } else {
-        throw new Error('Impossible de récupérer le profil utilisateur');
+        console.error('❌ [AuthPage] No user profile found');
+        throw new Error('Impossible de récupérer le profil utilisateur. Le compte existe mais le profil n\'est pas accessible.');
       }
     } catch (err: any) {
+      console.error('❌ [AuthPage] Login error:', err);
       setError(err.message || 'Erreur lors de la connexion');
     } finally {
+      console.log('🏁 [AuthPage] Login process finished, setting loading to false');
       setLoading(false);
     }
   };

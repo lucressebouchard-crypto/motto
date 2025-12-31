@@ -111,7 +111,7 @@ export const authService = {
   },
 
   async signIn(signInData: SignInData) {
-    console.log('🔐 Starting signin for:', signInData.email);
+    console.log('🔐 [signIn] Starting signin for:', signInData.email);
     
     const { data, error } = await supabase.auth.signInWithPassword({
       email: signInData.email,
@@ -119,11 +119,16 @@ export const authService = {
     });
 
     if (error) {
-      console.error('❌ Signin error:', error);
+      console.error('❌ [signIn] Signin error:', error);
       throw error;
     }
     
-    console.log('✅ Signin successful');
+    console.log('✅ [signIn] Signin successful, user:', data.user?.id);
+    console.log('📋 [signIn] Session:', data.session ? 'session exists' : 'no session');
+    
+    // Attendre un peu pour que la session soit bien établie
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     return data;
   },
 
@@ -133,8 +138,22 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<User | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    console.log('🔍 [getCurrentUser] Getting auth user...');
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError) {
+      console.error('❌ [getCurrentUser] Auth error:', authError);
+      return null;
+    }
+    
+    if (!user) {
+      console.log('ℹ️ [getCurrentUser] No authenticated user');
+      return null;
+    }
+
+    console.log('✅ [getCurrentUser] Auth user found:', user.id);
+    console.log('🔍 [getCurrentUser] Fetching profile from users table...');
 
     const { data: profile, error } = await supabase
       .from('users')
@@ -143,9 +162,12 @@ export const authService = {
       .single();
 
     if (error) {
+      console.error('❌ [getCurrentUser] Profile fetch error:', error);
+      console.error('Error details:', { code: error.code, message: error.message });
+      
       // Si le profil n'existe pas (utilisateur créé dans Auth mais pas dans users)
       if (error.code === 'PGRST116') {
-        console.warn('User exists in Auth but not in users table. Creating profile...');
+        console.warn('⚠️ [getCurrentUser] User exists in Auth but not in users table. Creating profile...');
         // Essayer de créer le profil avec les données de base
         const profileData = {
           id: user.id,
@@ -155,6 +177,8 @@ export const authService = {
           avatar: user.user_metadata?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email?.split('@')[0] || 'User')}&background=6366f1&color=fff`,
         };
         
+        console.log('📝 [getCurrentUser] Creating profile with data:', { ...profileData, id: profileData.id });
+        
         const { data: newProfile, error: insertError } = await supabase
           .from('users')
           .insert(profileData)
@@ -162,14 +186,20 @@ export const authService = {
           .single();
         
         if (insertError) {
-          console.error('Failed to create missing profile:', insertError);
+          console.error('❌ [getCurrentUser] Failed to create missing profile:', insertError);
+          console.error('Insert error details:', { code: insertError.code, message: insertError.message });
           return null;
         }
         
+        console.log('✅ [getCurrentUser] Profile created successfully');
         return newProfile ? mapUserFromDB(newProfile) : null;
       }
+      
+      console.error('❌ [getCurrentUser] Unexpected error, throwing...');
       throw error;
     }
+    
+    console.log('✅ [getCurrentUser] Profile found:', profile.id);
     return profile ? mapUserFromDB(profile) : null;
   },
 
