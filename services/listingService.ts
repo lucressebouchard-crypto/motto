@@ -60,23 +60,17 @@ export const listingService = {
       query = query.eq('seller_id', filters.sellerId);
     }
 
+    // Recherche côté serveur avec ilike pour une meilleure performance
+    if (filters?.searchQuery) {
+      const search = filters.searchQuery.trim();
+      query = query.or(`title.ilike.%${search}%,location.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
     const { data, error } = await query;
 
     if (error) throw error;
 
-    let listings = (data || []).map(mapListingFromDB);
-
-    if (filters?.searchQuery) {
-      const query = filters.searchQuery.toLowerCase();
-      listings = listings.filter(
-        (l) =>
-          l.title.toLowerCase().includes(query) ||
-          l.location.toLowerCase().includes(query) ||
-          l.description.toLowerCase().includes(query)
-      );
-    }
-
-    return listings;
+    return (data || []).map(mapListingFromDB);
   },
 
   async getById(id: string): Promise<Listing | null> {

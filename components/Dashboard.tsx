@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { Settings, LogOut, TrendingUp, ShoppingBag, Eye, Heart, BarChart3, Rocket, Store, ShieldCheck, X, AlertCircle, CheckCircle } from 'lucide-react';
+import { Settings, LogOut, TrendingUp, ShoppingBag, Eye, Heart, BarChart3, Rocket, Store, ShieldCheck, X, AlertCircle, CheckCircle, Edit2, Trash2 } from 'lucide-react';
 import { User, Listing } from '../types';
 import ListingCard from './ListingCard';
+import { listingService } from '../services/listingService';
 
 interface DashboardProps {
   user: User;
@@ -12,12 +13,15 @@ interface DashboardProps {
   onToggleFavorite: (id: string) => void;
   onSelectListing: (listing: Listing) => void;
   onLogout: () => void;
+  onListingUpdate?: () => void; // Pour recharger les listings après modification
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorites, onToggleFavorite, onSelectListing, onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorites, onToggleFavorite, onSelectListing, onLogout, onListingUpdate }) => {
   const [view, setView] = useState<'sales' | 'favorites'>('sales');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [boostingId, setBoostingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const mySales = listings.filter(l => l.sellerId === user.id);
   const myFavorites = listings.filter(l => favorites.includes(l.id));
@@ -28,6 +32,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
     await new Promise(r => setTimeout(r, 1500));
     onBoost(id);
     setBoostingId(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await listingService.delete(id);
+      setShowDeleteConfirm(null);
+      // Recharger les listings
+      if (onListingUpdate) {
+        onListingUpdate();
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      alert('Erreur lors de la suppression de l\'annonce');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleEdit = (listing: Listing) => {
+    // Pour l'instant, on peut ouvrir les détails de l'annonce
+    // TODO: Créer un modal d'édition
+    onSelectListing(listing);
   };
 
   return (
@@ -124,7 +151,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
                           <CheckCircle size={14} /> Visibilité Max
                         </div>
                       )}
-                      <button className="text-gray-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-gray-100 hover:bg-gray-50">Modifier</button>
+                      <button 
+                        onClick={() => handleEdit(listing)}
+                        className="text-gray-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-gray-100 hover:bg-gray-50 flex items-center gap-1.5"
+                      >
+                        <Edit2 size={12} /> Modifier
+                      </button>
+                      <button 
+                        onClick={() => setShowDeleteConfirm(listing.id)}
+                        className="text-red-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-red-100 hover:bg-red-50 flex items-center gap-1.5"
+                        disabled={deletingId === listing.id}
+                      >
+                        {deletingId === listing.id ? (
+                          <>Suppression...</>
+                        ) : (
+                          <><Trash2 size={12} /> Supprimer</>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -158,6 +201,36 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
           <p className="text-[9px] text-gray-300 font-black uppercase tracking-[0.3em]">MƆ̆TTO marketplace v2.0</p>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowDeleteConfirm(null)} />
+          <div className="bg-white w-full max-w-sm rounded-[40px] z-10 p-10 flex flex-col items-center text-center shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
+              <AlertCircle size={40} strokeWidth={2.5} />
+            </div>
+            <h2 className="text-xl font-black text-gray-900 mb-2">Supprimer l'annonce</h2>
+            <p className="text-gray-500 font-medium leading-relaxed mb-8 px-4">Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.</p>
+            <div className="flex flex-col w-full gap-3">
+              <button 
+                onClick={() => handleDelete(showDeleteConfirm)}
+                disabled={deletingId !== null}
+                className="w-full bg-red-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-red-100 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {deletingId ? 'Suppression...' : 'Oui, supprimer'}
+              </button>
+              <button 
+                onClick={() => setShowDeleteConfirm(null)}
+                disabled={deletingId !== null}
+                className="w-full bg-gray-50 text-gray-500 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-gray-100 transition-all disabled:opacity-50"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Logout Confirmation Dialog - REFINED */}
       {showLogoutConfirm && (

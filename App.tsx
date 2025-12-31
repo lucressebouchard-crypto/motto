@@ -5,6 +5,7 @@ import { Listing, Category, User } from './types';
 import { MOCK_MECHANICS } from './mockData';
 import { authService } from './services/authService';
 import { listingService } from './services/listingService';
+import { favoriteService } from './services/favoriteService';
 import Feed from './components/Feed';
 import MechanicFeed from './components/MechanicFeed';
 import CreateListingModal from './components/CreateListingModal';
@@ -36,6 +37,13 @@ const App: React.FC = () => {
         const user = await authService.getCurrentUser();
         if (user) {
           setCurrentUser(user);
+          // Charger les favoris de l'utilisateur
+          try {
+            const favs = await favoriteService.getByUser(user.id);
+            setFavorites(favs);
+          } catch (error) {
+            console.error('Erreur lors du chargement des favoris:', error);
+          }
         }
       } catch (error) {
         console.error('Erreur lors du chargement de l\'utilisateur:', error);
@@ -45,27 +53,54 @@ const App: React.FC = () => {
     loadUser();
 
     // Écouter les changements d'authentification
-    const { data: { subscription } } = authService.onAuthStateChange((user) => {
+    const { data: { subscription } } = authService.onAuthStateChange(async (user) => {
       setCurrentUser(user);
-      if (!user) {
-        // Si l'utilisateur se déconnecte, nettoyer le localStorage
+      if (user) {
+        // Charger les favoris de l'utilisateur
+        try {
+          const favs = await favoriteService.getByUser(user.id);
+          setFavorites(favs);
+        } catch (error) {
+          console.error('Erreur lors du chargement des favoris:', error);
+        }
+      } else {
+        // Si l'utilisateur se déconnecte, nettoyer les favoris
+        setFavorites([]);
         localStorage.removeItem('motto_user');
       }
     });
-
-    // Charger les favoris depuis le localStorage (sera remplacé par Supabase plus tard)
-    const savedFavs = localStorage.getItem('motto_favs');
-    if (savedFavs) setFavorites(JSON.parse(savedFavs));
 
     return () => {
       subscription.unsubscribe();
     };
   }, []);
 
-  useEffect(() => localStorage.setItem('motto_favs', JSON.stringify(favorites)), [favorites]);
+  const toggleFavorite = async (id: string) => {
+    if (!currentUser) {
+      // Si pas connecté, rediriger vers la page d'authentification
+      setActiveTab('auth');
+      return;
+    }
 
-  const toggleFavorite = (id: string) => {
-    setFavorites(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
+    const isCurrentlyFavorite = favorites.includes(id);
+    
+    try {
+      if (isCurrentlyFavorite) {
+        await favoriteService.remove(currentUser.id, id);
+        setFavorites(prev => prev.filter(fid => fid !== id));
+      } else {
+        await favoriteService.add(currentUser.id, id);
+        setFavorites(prev => [...prev, id]);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la modification des favoris:', error);
+      // Revert en cas d'erreur
+      if (isCurrentlyFavorite) {
+        setFavorites(prev => [...prev, id]);
+      } else {
+        setFavorites(prev => prev.filter(fid => fid !== id));
+      }
+    }
   };
 
   // Charger et recharger les listings quand l'onglet ou la recherche change
@@ -208,7 +243,22 @@ const App: React.FC = () => {
                 } catch (error) {
                   console.error('Erreur lors du boost:', error);
                 }
-              }} favorites={favorites} onToggleFavorite={toggleFavorite} onSelectListing={setSelectedListing} onLogout={async () => {
+              }} favorites={favorites} onToggleFavorite={toggleFavorite} onSelectListing={setSelectedListing} onListingUpdate={async () => {
+                try {
+                  // Recharger les listings après modification
+                  let category: Category | undefined;
+                  if (activeTab === 'cars') category = Category.CAR;
+                  else if (activeTab === 'motos') category = Category.MOTO;
+                  else if (activeTab === 'accessories') category = Category.ACCESSORY;
+                  const loadedListings = await listingService.getAll({
+                    category,
+                    searchQuery: searchQuery || undefined,
+                  });
+                  setListings(loadedListings);
+                } catch (error) {
+                  console.error('Erreur lors du rechargement des listings:', error);
+                }
+              }} onLogout={async () => {
                   try {
                     console.log('🔄 [App] Logout initiated');
                     await authService.signOut();
