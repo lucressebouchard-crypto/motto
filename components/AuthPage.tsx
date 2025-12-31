@@ -72,7 +72,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
     }
 
     try {
-      const { profile, error: signUpError } = await authService.signUp({
+      const result = await authService.signUp({
         email: formData.email,
         password: formData.password,
         name: formData.name,
@@ -81,19 +81,36 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
         shopName: (role === 'seller' || role === 'mechanic') ? formData.shopName : undefined,
       });
 
-      if (signUpError) throw signUpError;
-
-      // Le profil est déjà dans le bon format depuis authService
-      // Mais on doit récupérer l'utilisateur complet depuis getCurrentUser
+      // Récupérer le profil utilisateur (déjà créé dans signUp)
       const user = await authService.getCurrentUser();
       if (user) {
         onSuccess(user);
       } else {
-        throw new Error('Impossible de récupérer le profil utilisateur');
+        // Si getCurrentUser retourne null, essayer avec le profil retourné par signUp
+        if (result?.profile) {
+          const mappedUser = {
+            id: result.profile.id,
+            name: result.profile.name,
+            email: result.profile.email,
+            role: result.profile.role,
+            avatar: result.profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(result.profile.name)}&background=6366f1&color=fff`,
+            shopName: result.profile.shop_name,
+            phoneNumber: result.profile.phone_number,
+            address: result.profile.address,
+            isVerified: result.profile.is_verified || false,
+            specialties: result.profile.specialties,
+            rating: result.profile.rating,
+            completedInspections: result.profile.completed_inspections,
+            hourlyRate: result.profile.hourly_rate,
+          };
+          onSuccess(mappedUser as any);
+        } else {
+          throw new Error('Impossible de récupérer le profil utilisateur');
+        }
       }
     } catch (err: any) {
+      console.error('Erreur lors de l\'inscription:', err);
       setError(err.message || 'Erreur lors de l\'inscription');
-    } finally {
       setLoading(false);
     }
   };

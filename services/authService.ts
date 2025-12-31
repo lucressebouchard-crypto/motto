@@ -19,13 +19,30 @@ export interface SignInData {
 
 export const authService = {
   async signUp(data: SignUpData) {
+    console.log('🔐 Starting signup for:', data.email);
+    
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
+      options: {
+        data: {
+          name: data.name,
+          role: data.role,
+        }
+      }
     });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('Failed to create user');
+    if (authError) {
+      console.error('❌ Auth error:', authError);
+      throw authError;
+    }
+    
+    if (!authData.user) {
+      console.error('❌ No user returned from signUp');
+      throw new Error('Échec de la création du compte. Veuillez réessayer.');
+    }
+
+    console.log('✅ User created in Auth:', authData.user.id);
 
     // Create user profile
     const profileData = {
@@ -40,15 +57,25 @@ export const authService = {
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=6366f1&color=fff`,
     };
 
+    console.log('📝 Creating profile with data:', { ...profileData, specialties: profileData.specialties });
+
     const { data: insertedProfiles, error: profileError } = await supabase
       .from('users')
       .insert(profileData)
       .select();
 
     if (profileError) {
-      console.error('Error creating user profile:', profileError);
+      console.error('❌ Error creating user profile:', profileError);
+      console.error('Error details:', {
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint,
+      });
+      
       // Si le profil existe déjà (peut arriver avec email confirmation), on le récupère
       if (profileError.code === '23505') { // Violation de contrainte unique
+        console.log('ℹ️ Profile already exists, fetching...');
         const { data: existingProfile, error: fetchError } = await supabase
           .from('users')
           .select('*')
@@ -56,34 +83,47 @@ export const authService = {
           .single();
         
         if (fetchError) {
-          console.error('Error fetching existing profile:', fetchError);
+          console.error('❌ Error fetching existing profile:', fetchError);
           throw fetchError;
         }
+        console.log('✅ Found existing profile');
         return { user: authData.user, profile: existingProfile };
       }
       // Si erreur RLS (permission denied), donner un message plus explicite
       if (profileError.code === '42501' || profileError.message?.includes('permission')) {
         throw new Error('Erreur de permission. La policy INSERT pour la table users est manquante. Veuillez exécuter le script SQL de correction.');
       }
-      throw profileError;
+      
+      // Message d'erreur plus explicite pour l'utilisateur
+      const errorMessage = profileError.message || 'Erreur lors de la création du profil';
+      throw new Error(`Impossible de créer le profil: ${errorMessage}`);
     }
 
     // Vérifier qu'on a bien un profil retourné
     if (!insertedProfiles || insertedProfiles.length === 0) {
-      throw new Error('Profile created but not returned');
+      console.error('❌ Profile created but not returned');
+      throw new Error('Profil créé mais non retourné. Veuillez vous reconnecter.');
     }
 
+    console.log('✅ Profile created successfully:', insertedProfiles[0].id);
     const profile = insertedProfiles[0];
     return { user: authData.user, profile };
   },
 
   async signIn(signInData: SignInData) {
+    console.log('🔐 Starting signin for:', signInData.email);
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email: signInData.email,
       password: signInData.password,
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Signin error:', error);
+      throw error;
+    }
+    
+    console.log('✅ Signin successful');
     return data;
   },
 
@@ -102,7 +142,34 @@ export const authService = {
       .eq('id', user.id)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Si le profil n'existe pas (utilisateur créé dans Auth mais pas dans users)
+      if (error.code === 'PGRST116') {
+        console.warn('User exists in Auth but not in users table. Creating profile...');
+        // Essayer de créer le profil avec les données de base
+        const profileData = {
+          id: user.id,
+          email: user.email || '',
+          name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+          role: user.user_metadata?.role || 'buyer',
+          avatar: user.user_metadata?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email?.split('@')[0] || 'User')}&background=6366f1&color=fff`,
+        };
+        
+        const { data: newProfile, error: insertError } = await supabase
+          .from('users')
+          .insert(profileData)
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error('Failed to create missing profile:', insertError);
+          return null;
+        }
+        
+        return newProfile ? mapUserFromDB(newProfile) : null;
+      }
+      throw error;
+    }
     return profile ? mapUserFromDB(profile) : null;
   },
 
