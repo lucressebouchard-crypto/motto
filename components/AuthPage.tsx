@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ChevronLeft, User, ShoppingBag, Mail, Lock, Phone, Store, ShieldCheck, Wrench, ArrowRight, Car } from 'lucide-react';
+import { ChevronLeft, User, ShoppingBag, Mail, Lock, Phone, Store, ShieldCheck, Wrench, ArrowRight, Car, Eye, EyeOff } from 'lucide-react';
 import { User as UserType, UserRole } from '../types';
 import { authService } from '../services/authService';
 import Logo from './Logo';
@@ -280,21 +280,36 @@ const RoleCard: React.FC<{ icon: React.ReactNode, title: string, description: st
   </button>
 );
 
-const Input: React.FC<{ label: string, icon: React.ReactNode, value: string, onChange: (v: string) => void, placeholder?: string, type?: string, required?: boolean }> = ({ label, icon, value, onChange, placeholder, type = "text", required }) => (
-  <div className="space-y-2">
-    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">{label}</label>
-    <div className="relative group">
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors">{icon}</div>
-      <input 
-        type={type} 
-        placeholder={placeholder} 
-        required={required} 
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-[20px] focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 font-bold text-sm shadow-sm transition-all"
-      />
+const Input: React.FC<{ label: string, icon: React.ReactNode, value: string, onChange: (v: string) => void, placeholder?: string, type?: string, required?: boolean }> = ({ label, icon, value, onChange, placeholder, type = "text", required }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === 'password';
+  const inputType = isPassword && showPassword ? 'text' : type;
+
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">{label}</label>
+      <div className="relative group">
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors">{icon}</div>
+        <input 
+          type={inputType} 
+          placeholder={placeholder} 
+          required={required} 
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={`w-full ${isPassword ? 'pl-12 pr-12' : 'pl-12 pr-4'} py-4 bg-gray-50 border border-gray-100 rounded-[20px] focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 font-bold text-sm shadow-sm transition-all`}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default AuthPage;
