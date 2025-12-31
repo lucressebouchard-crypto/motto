@@ -68,6 +68,24 @@ export const notificationService = {
     if (error) throw error;
     return count || 0;
   },
+
+  subscribeToNotifications(userId: string, callback: (notification: Notification) => void) {
+    return supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          callback(mapNotificationFromDB(payload.new));
+        }
+      )
+      .subscribe();
+  },
 };
 
 function mapNotificationFromDB(dbNotification: any): Notification {

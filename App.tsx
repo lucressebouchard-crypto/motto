@@ -6,6 +6,8 @@ import { MOCK_MECHANICS } from './mockData';
 import { authService } from './services/authService';
 import { listingService } from './services/listingService';
 import { favoriteService } from './services/favoriteService';
+import { chatService } from './services/chatService';
+import { notificationService } from './services/notificationService';
 import Feed from './components/Feed';
 import MechanicFeed from './components/MechanicFeed';
 import CreateListingModal from './components/CreateListingModal';
@@ -29,6 +31,7 @@ const App: React.FC = () => {
   const [showChats, setShowChats] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
   // Charger l'utilisateur et les listings depuis Supabase au démarrage
   useEffect(() => {
@@ -63,9 +66,28 @@ const App: React.FC = () => {
         } catch (error) {
           console.error('Erreur lors du chargement des favoris:', error);
         }
+        
+        // Charger le compteur de notifications non lues
+        try {
+          const count = await notificationService.getUnreadCount(user.id);
+          setUnreadNotificationsCount(count);
+        } catch (error) {
+          console.error('Erreur lors du chargement des notifications:', error);
+        }
+
+        // S'abonner aux nouvelles notifications
+        const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {
+          const count = await notificationService.getUnreadCount(user.id);
+          setUnreadNotificationsCount(count);
+        });
+
+        return () => {
+          notifSubscription.unsubscribe();
+        };
       } else {
         // Si l'utilisateur se déconnecte, nettoyer les favoris
         setFavorites([]);
+        setUnreadNotificationsCount(0);
         localStorage.removeItem('motto_user');
       }
     });
@@ -185,7 +207,11 @@ const App: React.FC = () => {
             <div className="flex items-center gap-2 sm:gap-6">
               <button onClick={() => { resetViews(); setShowNotifications(true); }} className={`relative p-2 rounded-full transition-all hover:bg-gray-50 ${showNotifications ? 'text-indigo-600' : 'text-gray-500'}`}>
                 <Bell size={22} fill={showNotifications ? 'currentColor' : 'none'} />
-                {!showNotifications && <span className="absolute top-1 right-1 bg-red-500 text-[10px] text-white rounded-full w-4 h-4 flex items-center justify-center border-2 border-white font-bold">2</span>}
+                {!showNotifications && unreadNotificationsCount > 0 && (
+                  <span className="absolute top-1 right-1 bg-red-500 text-[10px] text-white rounded-full min-w-[16px] h-4 flex items-center justify-center border-2 border-white font-bold px-1">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
+                )}
               </button>
               <button onClick={() => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} className={`p-2 rounded-full transition-all hover:bg-gray-50 ${showChats ? 'text-indigo-600' : 'text-gray-500'}`}>
                 <MessageCircle size={22} fill={showChats ? 'currentColor' : 'none'} />
@@ -213,9 +239,9 @@ const App: React.FC = () => {
               }} 
             />
           ) : showNotifications ? (
-            <NotificationList onClose={() => setShowNotifications(false)} />
+            <NotificationList onClose={() => setShowNotifications(false)} currentUser={currentUser} />
           ) : showChats ? (
-            <ChatList onClose={() => setShowChats(false)} />
+            <ChatList onClose={() => setShowChats(false)} currentUser={currentUser} />
           ) : activeTab === 'profile' && currentUser ? (
             currentUser.role === 'mechanic' ? (
               <MechanicDashboard 
@@ -276,7 +302,33 @@ const App: React.FC = () => {
             <ListingDetails 
               listing={selectedListing} 
               onBack={() => setSelectedListing(null)} 
-              onMessage={() => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} 
+              onMessage={async () => {
+                if (!currentUser) {
+                  setActiveTab('auth');
+                  return;
+                }
+                try {
+                  // Créer ou récupérer un chat avec le vendeur
+                  const existingChats = await chatService.getByParticipant(currentUser.id);
+                  let chat = existingChats.find(c => 
+                    c.participants.includes(listing.sellerId) && 
+                    c.listingId === listing.id
+                  );
+                  
+                  if (!chat) {
+                    chat = await chatService.create({
+                      participantIds: [currentUser.id, listing.sellerId],
+                      listingId: listing.id,
+                    });
+                  }
+                  
+                  resetViews();
+                  setShowChats(true);
+                } catch (error) {
+                  console.error('Erreur lors de la création du chat:', error);
+                  alert('Erreur lors de la création de la conversation');
+                }
+              }}
               isFavorite={favorites.includes(selectedListing.id)} 
               onToggleFavorite={() => toggleFavorite(selectedListing.id)} 
               currentUser={currentUser} 

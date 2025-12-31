@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
-import { X, Camera, Upload, CheckCircle2, Loader2, Rocket, Info, Star } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Camera, Upload, CheckCircle2, Loader2, Rocket, Info, Star, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { Category, Listing, ItemStatus, User } from '../types';
 import { listingService } from '../services/listingService';
+import { imageService } from '../services/imageService';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -14,6 +15,11 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isBoosted, setIsBoosted] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: '',
     price: '',
@@ -27,6 +33,39 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
     status: 'used' as ItemStatus
   });
 
+  const handleImageSelect = (files: FileList | null) => {
+    if (!files) return;
+
+    const newFiles: File[] = [];
+    const newPreviews: string[] = [];
+
+    Array.from(files).forEach(file => {
+      const validation = imageService.validateImageFile(file);
+      if (!validation.valid) {
+        alert(validation.error);
+        return;
+      }
+
+      newFiles.push(file);
+      // Créer une preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          newPreviews.push(e.target.result as string);
+          setImagePreviews([...imagePreviews, ...newPreviews]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    setSelectedImages(prev => [...prev, ...newFiles]);
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -35,14 +74,26 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
       return;
     }
 
+    if (selectedImages.length === 0) {
+      alert('Veuillez ajouter au moins une image');
+      return;
+    }
+
     setIsSubmitting(true);
+    setUploadingImages(true);
     
     try {
+      // Upload des images d'abord
+      const imageUrls = await imageService.uploadMultipleImages(selectedImages, currentUser.id);
+      
+      setUploadingImages(false);
+
+      // Créer l'annonce avec les URLs des images
       const newListing = await listingService.create({
         title: formData.title,
         price: parseFloat(formData.price),
         category: formData.category,
-        images: ['https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=800&q=80'], // Placeholder
+        images: imageUrls.length > 0 ? imageUrls : ['https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=800&q=80'],
         year: formData.year,
         mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
         color: formData.color,
@@ -74,6 +125,7 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
       console.error('Erreur lors de la création de l\'annonce:', error);
       alert(error.message || 'Erreur lors de la création de l\'annonce');
       setIsSubmitting(false);
+      setUploadingImages(false);
     }
   };
 
@@ -120,15 +172,69 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 pb-20 no-scrollbar">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 gap-2 hover:border-indigo-300 hover:text-indigo-400 transition-all cursor-pointer">
-              <Camera size={24} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Prendre photo</span>
+          {/* Image Upload Section */}
+          <div className="space-y-3">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Photos de l'annonce</label>
+            
+            {/* Preview des images sélectionnées */}
+            {imagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                {imagePreviews.map((preview, index) => (
+                  <div key={index} className="relative aspect-square rounded-2xl overflow-hidden group">
+                    <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Boutons d'upload */}
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => handleImageSelect(e.target.files)}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 gap-2 hover:border-indigo-300 hover:text-indigo-400 transition-all cursor-pointer"
+              >
+                <Camera size={24} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Photo</span>
+              </button>
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => handleImageSelect(e.target.files)}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 gap-2 hover:border-indigo-300 hover:text-indigo-400 transition-all cursor-pointer"
+              >
+                <Upload size={24} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Galerie</span>
+              </button>
             </div>
-            <div className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 gap-2 hover:border-indigo-300 hover:text-indigo-400 transition-all cursor-pointer">
-              <Upload size={24} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Galerie</span>
-            </div>
+            {selectedImages.length > 0 && (
+              <p className="text-[9px] text-gray-400 font-bold text-center">
+                {selectedImages.length} image{selectedImages.length > 1 ? 's' : ''} sélectionnée{selectedImages.length > 1 ? 's' : ''}
+              </p>
+            )}
           </div>
 
           <div className="space-y-5">
@@ -239,7 +345,12 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
             disabled={isSubmitting}
             className="w-full bg-indigo-600 text-white py-4.5 rounded-2xl font-black shadow-xl shadow-indigo-100 active:scale-95 disabled:opacity-70 disabled:active:scale-100 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm"
           >
-            {isSubmitting ? (
+            {uploadingImages ? (
+              <>
+                <Loader2 size={20} className="animate-spin" />
+                Upload des images...
+              </>
+            ) : isSubmitting ? (
               <>
                 <Loader2 size={20} className="animate-spin" />
                 Publication en cours...
