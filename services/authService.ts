@@ -28,24 +28,44 @@ export const authService = {
     if (!authData.user) throw new Error('Failed to create user');
 
     // Create user profile
-    const { data: profile, error: profileError } = await supabase
+    const profileData = {
+      id: authData.user.id,
+      email: data.email,
+      name: data.name,
+      role: data.role,
+      phone_number: data.phoneNumber || null,
+      shop_name: data.shopName || null,
+      address: data.address || null,
+      specialties: data.specialties || null,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=6366f1&color=fff`,
+    };
+
+    const { data: insertedProfiles, error: profileError } = await supabase
       .from('users')
-      .insert({
-        id: authData.user.id,
-        email: data.email,
-        name: data.name,
-        role: data.role,
-        phone_number: data.phoneNumber,
-        shop_name: data.shopName,
-        address: data.address,
-        specialties: data.specialties,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=6366f1&color=fff`,
-      })
-      .select()
-      .single();
+      .insert(profileData)
+      .select();
 
-    if (profileError) throw profileError;
+    if (profileError) {
+      // Si le profil existe déjà (peut arriver avec email confirmation), on le récupère
+      if (profileError.code === '23505') { // Violation de contrainte unique
+        const { data: existingProfile, error: fetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        return { user: authData.user, profile: existingProfile };
+      }
+      throw profileError;
+    }
 
+    // Vérifier qu'on a bien un profil retourné
+    if (!insertedProfiles || insertedProfiles.length === 0) {
+      throw new Error('Profile created but not returned');
+    }
+
+    const profile = insertedProfiles[0];
     return { user: authData.user, profile };
   },
 
