@@ -187,11 +187,15 @@ const App: React.FC = () => {
                 user={currentUser} 
                 onLogout={async () => {
                   try {
+                    console.log('🔄 [App] Logout initiated (mechanic)');
                     await authService.signOut();
+                    // Attendre un peu pour que l'événement onAuthStateChange se déclenche
+                    await new Promise(resolve => setTimeout(resolve, 200));
                     setCurrentUser(null);
                     setActiveTab('home');
+                    console.log('✅ [App] Logout complete (mechanic)');
                   } catch (error) {
-                    console.error('Erreur lors de la déconnexion:', error);
+                    console.error('❌ [App] Erreur lors de la déconnexion:', error);
                   }
                 }} 
                 onExit={() => setActiveTab('home')}
@@ -205,14 +209,18 @@ const App: React.FC = () => {
                   console.error('Erreur lors du boost:', error);
                 }
               }} favorites={favorites} onToggleFavorite={toggleFavorite} onSelectListing={setSelectedListing} onLogout={async () => {
-                try {
-                  await authService.signOut();
-                  setCurrentUser(null);
-                  setActiveTab('home');
-                } catch (error) {
-                  console.error('Erreur lors de la déconnexion:', error);
-                }
-              }} />
+                  try {
+                    console.log('🔄 [App] Logout initiated');
+                    await authService.signOut();
+                    // Attendre un peu pour que l'événement onAuthStateChange se déclenche
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    setCurrentUser(null);
+                    setActiveTab('home');
+                    console.log('✅ [App] Logout complete');
+                  } catch (error) {
+                    console.error('❌ [App] Erreur lors de la déconnexion:', error);
+                  }
+                }} />
             )
           ) : selectedListing ? (
             <ListingDetails 

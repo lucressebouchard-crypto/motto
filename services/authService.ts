@@ -133,8 +133,26 @@ export const authService = {
   },
 
   async signOut() {
+    console.log('🚪 [signOut] Starting signout...');
+    
     const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    
+    if (error) {
+      console.error('❌ [signOut] Signout error:', error);
+      throw error;
+    }
+    
+    console.log('✅ [signOut] Signout successful');
+    
+    // Vérifier que la session est bien supprimée
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      console.warn('⚠️ [signOut] Session still exists after signout, trying again...');
+      // Essayer une deuxième fois
+      await supabase.auth.signOut();
+    } else {
+      console.log('✅ [signOut] Session confirmed deleted');
+    }
   },
 
   async getCurrentUser(): Promise<User | null> {
@@ -214,10 +232,14 @@ export const authService = {
 
   onAuthStateChange(callback: (user: User | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 [onAuthStateChange] Event:', event, 'Session:', session ? 'exists' : 'null');
+      
       if (session?.user) {
+        console.log('✅ [onAuthStateChange] User authenticated, fetching profile...');
         const user = await this.getCurrentUser();
         callback(user);
       } else {
+        console.log('ℹ️ [onAuthStateChange] No session, user logged out');
         callback(null);
       }
     });
