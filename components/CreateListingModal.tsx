@@ -74,6 +74,32 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
       return;
     }
 
+    // Validation des champs obligatoires
+    if (!formData.title.trim()) {
+      alert('Veuillez saisir un titre pour votre annonce');
+      return;
+    }
+
+    if (!formData.price || formData.price.trim() === '' || isNaN(parseFloat(formData.price)) || parseFloat(formData.price) <= 0) {
+      alert('Veuillez saisir un prix valide (supérieur à 0)');
+      return;
+    }
+
+    if (!formData.description.trim()) {
+      alert('Veuillez saisir une description pour votre annonce');
+      return;
+    }
+
+    if (!formData.color.trim()) {
+      alert('Veuillez saisir une couleur');
+      return;
+    }
+
+    if (!formData.location.trim()) {
+      alert('Veuillez saisir une localisation');
+      return;
+    }
+
     if (selectedImages.length === 0) {
       alert('Veuillez ajouter au moins une image');
       return;
@@ -88,21 +114,27 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
       
       setUploadingImages(false);
 
+      // Convertir le prix en nombre (avec validation)
+      const price = parseFloat(formData.price);
+      if (isNaN(price) || price <= 0) {
+        throw new Error('Le prix doit être un nombre positif');
+      }
+
       // Créer l'annonce avec les URLs des images
       const newListing = await listingService.create({
-        title: formData.title,
-        price: parseFloat(formData.price),
+        title: formData.title.trim(),
+        price: price,
         category: formData.category,
         images: imageUrls.length > 0 ? imageUrls : ['https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=800&q=80'],
         year: formData.year,
         mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
-        color: formData.color,
+        color: formData.color.trim(),
         condition: formData.condition,
-        description: formData.description,
+        description: formData.description.trim(),
         sellerId: currentUser.id,
         sellerType: currentUser.role === 'seller' ? 'pro' : 'individual',
         status: formData.status,
-        location: formData.location || 'Abidjan, CI',
+        location: formData.location.trim() || 'Abidjan, CI',
       });
       
       // Si boost activé, le faire après la création
