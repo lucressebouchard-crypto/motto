@@ -19,7 +19,8 @@
     "supabase:setup-complete": "node scripts/setup-supabase-complete.js",
     "supabase:init": "node scripts/init-supabase.js",
     "supabase:fix-users": "node scripts/fix-users-policy.js",
-    "supabase:service-role": "node scripts/setup-service-role.js"
+    "supabase:service-role": "node scripts/setup-service-role.js",
+    "supabase:check-bucket": "node scripts/check-storage-bucket.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
