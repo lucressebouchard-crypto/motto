@@ -14,10 +14,24 @@ export const imageService = {
    */
   async uploadImage(file: File, userId: string): Promise<string> {
     // Vérifier que l'utilisateur est authentifié
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('Erreur lors de la récupération de la session:', sessionError);
+      throw new Error('Erreur d\'authentification. Veuillez vous reconnecter.');
+    }
+    
     if (!session) {
+      console.error('Aucune session trouvée pour l\'utilisateur');
       throw new Error('Vous devez être connecté pour uploader des images');
     }
+
+    console.log('📤 Upload image:', {
+      userId,
+      sessionUserId: session.user?.id,
+      bucket: STORAGE_BUCKET,
+      fileName: file.name,
+    });
 
     // Générer un nom de fichier unique
     const fileExt = file.name.split('.').pop();
@@ -32,22 +46,36 @@ export const imageService = {
       });
 
     if (error) {
-      console.error('Erreur lors de l\'upload:', error);
+      console.error('❌ Erreur lors de l\'upload:', error);
       console.error('Détails de l\'erreur:', {
         message: error.message,
         statusCode: error.statusCode,
         error: error.error,
+        statusText: error.statusText,
+        userId,
+        sessionUserId: session.user?.id,
+        bucket: STORAGE_BUCKET,
+        fileName,
       });
       
       // Messages d'erreur plus clairs
       if (error.message.includes('Bucket not found') || error.message.includes('does not exist') || error.statusCode === 404) {
         throw new Error(`Le bucket "${STORAGE_BUCKET}" n'existe pas dans Supabase. Créez-le dans Supabase Dashboard > Storage > New bucket (nom: listing-images, public: oui)`);
-      } else if (error.message.includes('new row violates row-level security') || error.message.includes('RLS')) {
-        throw new Error('Vous n\'avez pas la permission d\'uploader des images. Vérifiez vos politiques RLS dans Supabase.');
+      } else if (
+        error.message.includes('new row violates row-level security') || 
+        error.message.includes('RLS') ||
+        error.message.includes('permission') ||
+        error.message.includes('policy') ||
+        error.statusCode === 403
+      ) {
+        const detailedError = `Vous n'avez pas la permission d'uploader des images. \n\nErreur: ${error.message}\n\nVérifiez que:\n1. Vous êtes bien connecté\n2. Les politiques RLS sont configurées (exécutez: npm run supabase:fix-storage-rls)\n3. Le bucket est public`;
+        throw new Error(detailedError);
       } else {
         throw new Error(`Erreur lors de l'upload de l'image: ${error.message}`);
       }
     }
+
+    console.log('✅ Image uploadée avec succès:', data.path);
 
     // Récupérer l'URL publique
     const { data: { publicUrl } } = supabase.storage
