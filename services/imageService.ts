@@ -19,19 +19,6 @@ export const imageService = {
       throw new Error('Vous devez être connecté pour uploader des images');
     }
 
-    // Vérifier que le bucket existe (test de connexion)
-    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-    if (bucketsError) {
-      console.error('Erreur lors de la vérification des buckets:', bucketsError);
-      throw new Error(`Erreur de connexion au Storage: ${bucketsError.message}`);
-    }
-
-    const bucketExists = buckets?.some(b => b.id === STORAGE_BUCKET);
-    if (!bucketExists) {
-      console.error('Buckets disponibles:', buckets?.map(b => b.id) || []);
-      throw new Error(`Le bucket "${STORAGE_BUCKET}" n'existe pas. Veuillez contacter l'administrateur.`);
-    }
-
     // Générer un nom de fichier unique
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -53,10 +40,10 @@ export const imageService = {
       });
       
       // Messages d'erreur plus clairs
-      if (error.message.includes('Bucket not found')) {
-        throw new Error(`Le bucket "${STORAGE_BUCKET}" n'existe pas. Veuillez exécuter: npm run supabase:setup-storage`);
-      } else if (error.message.includes('new row violates row-level security')) {
-        throw new Error('Vous n\'avez pas la permission d\'uploader des images. Vérifiez vos politiques RLS.');
+      if (error.message.includes('Bucket not found') || error.message.includes('does not exist') || error.statusCode === 404) {
+        throw new Error(`Le bucket "${STORAGE_BUCKET}" n'existe pas dans Supabase. Créez-le dans Supabase Dashboard > Storage > New bucket (nom: listing-images, public: oui)`);
+      } else if (error.message.includes('new row violates row-level security') || error.message.includes('RLS')) {
+        throw new Error('Vous n\'avez pas la permission d\'uploader des images. Vérifiez vos politiques RLS dans Supabase.');
       } else {
         throw new Error(`Erreur lors de l'upload de l'image: ${error.message}`);
       }

@@ -101,10 +101,10 @@ async function createBucketViaSQL(supabase) {
 }
 
 /**
- * Crée le bucket via l'API REST (méthode alternative)
+ * Crée le bucket via l'API REST Supabase (méthode principale)
  */
-async function createBucketViaAPI(supabase, url, serviceRoleKey) {
-  // Supabase Storage API pour créer un bucket
+async function createBucketViaAPI(url, serviceRoleKey) {
+  // L'API Supabase Storage pour créer un bucket nécessite l'endpoint REST
   const response = await fetch(`${url}/storage/v1/bucket`, {
     method: 'POST',
     headers: {
@@ -121,17 +121,24 @@ async function createBucketViaAPI(supabase, url, serviceRoleKey) {
     }),
   });
   
+  const responseText = await response.text();
+  
   if (response.ok) {
     return true;
   }
   
-  const errorText = await response.text();
-  // Si le bucket existe déjà, c'est OK
-  if (response.status === 409 || errorText.includes('already exists')) {
+  // Si le bucket existe déjà (409 Conflict), c'est OK
+  if (response.status === 409) {
+    console.log('   ℹ️  Le bucket existe déjà (409 Conflict)');
     return true;
   }
   
-  throw new Error(`Erreur API: ${response.status} - ${errorText}`);
+  // Si l'endpoint n'existe pas, utiliser la méthode SQL directe
+  if (response.status === 404) {
+    throw new Error('ENDPOINT_NOT_FOUND');
+  }
+  
+  throw new Error(`Erreur API: ${response.status} - ${responseText}`);
 }
 
 /**
@@ -227,30 +234,34 @@ async function main() {
     } else {
       console.log(`⚠️  Le bucket "${BUCKET_NAME}" n'existe pas. Création...\n`);
       
-      // Essayer de créer via SQL
+      // Essayer de créer via API REST (plus fiable)
       try {
-        await createBucketViaSQL(supabase);
-        console.log(`✅ Bucket "${BUCKET_NAME}" créé avec succès via SQL !\n`);
-      } catch (error) {
-        if (error.message === 'FONCTION_RPC_MANQUANTE') {
-          console.log('⚠️  La fonction RPC exec_sql n\'existe pas.');
-          console.log('💡 Création du bucket via l\'API REST...\n');
+        await createBucketViaAPI(config.url, config.serviceRoleKey);
+        console.log(`✅ Bucket "${BUCKET_NAME}" créé avec succès via API REST !\n`);
+      } catch (apiError) {
+        if (apiError.message === 'ENDPOINT_NOT_FOUND') {
+          // Si l'endpoint API n'existe pas, essayer via SQL
+          console.log('⚠️  L\'endpoint API n\'est pas disponible.');
+          console.log('💡 Essai de création via SQL...\n');
           
           try {
-            await createBucketViaAPI(supabase, config.url, config.serviceRoleKey);
-            console.log(`✅ Bucket "${BUCKET_NAME}" créé avec succès via API !\n`);
-          } catch (apiError) {
-            console.error('❌ Erreur lors de la création du bucket:', apiError.message);
+            await createBucketViaSQL(supabase);
+            console.log(`✅ Bucket "${BUCKET_NAME}" créé avec succès via SQL !\n`);
+          } catch (sqlError) {
+            console.error('❌ Erreur lors de la création du bucket:', sqlError.message);
             console.log('\n💡 Vous devez créer le bucket manuellement dans Supabase Dashboard:');
-            console.log('   1. Allez dans Storage > Buckets');
-            console.log(`   2. Cliquez sur "New bucket"`);
-            console.log(`   3. Nom: ${BUCKET_NAME}`);
-            console.log(`   4. Public: Oui`);
-            console.log(`   5. Cliquez sur "Create bucket"\n`);
+            console.log('   1. Allez sur https://supabase.com/dashboard');
+            console.log('   2. Sélectionnez votre projet');
+            console.log('   3. Allez dans Storage > Buckets');
+            console.log(`   4. Cliquez sur "New bucket"`);
+            console.log(`   5. Nom: ${BUCKET_NAME}`);
+            console.log(`   6. Public bucket: ✅ Cocher`);
+            console.log(`   7. File size limit: 50 MB`);
+            console.log(`   8. Cliquez sur "Create bucket"\n`);
             process.exit(1);
           }
         } else {
-          throw error;
+          throw apiError;
         }
       }
     }
