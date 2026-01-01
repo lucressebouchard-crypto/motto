@@ -4,6 +4,7 @@ import { X, Camera, Upload, CheckCircle2, Loader2, Rocket, Info, Star, Image as 
 import { Category, Listing, ItemStatus, User } from '../types';
 import { listingService } from '../services/listingService';
 import { imageService } from '../services/imageService';
+import AlertModal from './AlertModal';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -18,6 +19,7 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [alert, setAlert] = useState<{ message: string; type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
@@ -42,7 +44,7 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
     Array.from(files).forEach(file => {
       const validation = imageService.validateImageFile(file);
       if (!validation.valid) {
-        alert(validation.error);
+        setAlert({ message: validation.error, type: 'error' });
         return;
       }
 
@@ -70,38 +72,38 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
     e.preventDefault();
     
     if (!currentUser) {
-      alert('Vous devez être connecté pour créer une annonce');
+      setAlert({ message: 'Vous devez être connecté pour créer une annonce', type: 'warning' });
       return;
     }
 
     // Validation des champs obligatoires
     if (!formData.title.trim()) {
-      alert('Veuillez saisir un titre pour votre annonce');
+      setAlert({ message: 'Veuillez saisir un titre pour votre annonce', type: 'error' });
       return;
     }
 
     if (!formData.price || formData.price.trim() === '' || isNaN(parseFloat(formData.price)) || parseFloat(formData.price) <= 0) {
-      alert('Veuillez saisir un prix valide (supérieur à 0)');
+      setAlert({ message: 'Veuillez saisir un prix valide (supérieur à 0)', type: 'error' });
       return;
     }
 
     if (!formData.description.trim()) {
-      alert('Veuillez saisir une description pour votre annonce');
+      setAlert({ message: 'Veuillez saisir une description pour votre annonce', type: 'error' });
       return;
     }
 
     if (!formData.color.trim()) {
-      alert('Veuillez saisir une couleur');
+      setAlert({ message: 'Veuillez saisir une couleur', type: 'error' });
       return;
     }
 
     if (!formData.location.trim()) {
-      alert('Veuillez saisir une localisation');
+      setAlert({ message: 'Veuillez saisir une localisation', type: 'error' });
       return;
     }
 
     if (selectedImages.length === 0) {
-      alert('Veuillez ajouter au moins une image');
+      setAlert({ message: 'Veuillez ajouter au moins une image', type: 'error' });
       return;
     }
 
@@ -155,7 +157,7 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
       setTimeout(onClose, 2000);
     } catch (error: any) {
       console.error('Erreur lors de la création de l\'annonce:', error);
-      alert(error.message || 'Erreur lors de la création de l\'annonce');
+      setAlert({ message: error.message || 'Erreur lors de la création de l\'annonce', type: 'error' });
       setIsSubmitting(false);
       setUploadingImages(false);
     }
@@ -193,8 +195,16 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    <>
+      {alert && (
+        <AlertModal
+          message={alert.message}
+          type={alert.type}
+          onClose={() => setAlert(null)}
+        />
+      )}
+      <div className="fixed inset-0 z-[60] flex items-end justify-center">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="bg-white w-full max-w-md h-[90vh] rounded-t-[32px] z-10 flex flex-col animate-slide-up relative">
         <div className="p-6 flex items-center justify-between border-b shrink-0">
           <h2 className="text-xl font-black text-gray-900">Publier une annonce</h2>
@@ -272,7 +282,7 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
           <div className="space-y-5">
             <Input label="Titre de l'annonce" placeholder="Ex: Audi A3 Sportback" value={formData.title} onChange={v => setFormData({...formData, title: v})} required />
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Prix (FCFA)" type="number" placeholder="0.00" value={formData.price} onChange={v => setFormData({...formData, price: v})} required />
+              <Input label="Prix (FCFA)" type="text" placeholder="0.00" value={formData.price} onChange={v => setFormData({...formData, price: v})} required numbersOnly={true} />
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Catégorie</label>
                 <select 
@@ -288,8 +298,13 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Kilométrage" type="number" placeholder="Ex: 50000" value={formData.mileage} onChange={v => setFormData({...formData, mileage: v})} />
-              <Input label="Année" type="number" placeholder="2023" value={formData.year.toString()} onChange={v => setFormData({...formData, year: parseInt(v)})} required />
+              <Input label="Kilométrage" type="text" placeholder="Ex: 50000" value={formData.mileage} onChange={v => setFormData({...formData, mileage: v})} numbersOnly={true} allowDecimals={false} />
+              <Input label="Année" type="text" placeholder="2023" value={formData.year.toString()} onChange={v => {
+                const yearValue = v.replace(/[^0-9]/g, '');
+                if (yearValue === '' || (!isNaN(parseInt(yearValue)) && parseInt(yearValue) > 0)) {
+                  setFormData({...formData, year: yearValue ? parseInt(yearValue) : formData.year});
+                }
+              }} required numbersOnly={true} allowDecimals={false} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -402,22 +417,61 @@ const CreateListingModal: React.FC<CreateListingModalProps> = ({ onClose, onSubm
           animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
       `}</style>
-    </div>
+      </div>
+    </>
   );
 };
 
-const Input: React.FC<{ label: string, value: string, onChange: (v: string) => void, placeholder?: string, type?: string, required?: boolean }> = ({ label, value, onChange, placeholder, type = "text", required }) => (
-  <div className="space-y-1.5">
-    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">{label}</label>
-    <input 
-      type={type}
-      placeholder={placeholder}
-      required={required}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm shadow-sm transition-all focus:ring-4 focus:ring-indigo-500/5"
-    />
-  </div>
-);
+const Input: React.FC<{ label: string, value: string, onChange: (v: string) => void, placeholder?: string, type?: string, required?: boolean, numbersOnly?: boolean, allowDecimals?: boolean }> = ({ label, value, onChange, placeholder, type = "text", required, numbersOnly = false, allowDecimals = true }) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (numbersOnly) {
+      if (allowDecimals) {
+        // Autoriser uniquement les chiffres (0-9) et le point pour les décimales (prix)
+        const newValue = e.target.value.replace(/[^0-9.]/g, '');
+        // Éviter plusieurs points
+        const parts = newValue.split('.');
+        if (parts.length > 2) {
+          return;
+        }
+        onChange(newValue);
+      } else {
+        // Autoriser uniquement les chiffres entiers (kilométrage, année)
+        const newValue = e.target.value.replace(/[^0-9]/g, '');
+        onChange(newValue);
+      }
+    } else {
+      onChange(e.target.value);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (numbersOnly) {
+      // Autoriser: chiffres, point (si allowDecimals), backspace, delete, tab, escape, enter, flèches
+      const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+      const isNumber = /[0-9]/.test(e.key);
+      const isPoint = e.key === '.' && allowDecimals;
+      
+      if (!isNumber && !isPoint && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">{label}</label>
+      <input 
+        type={type}
+        placeholder={placeholder}
+        required={required}
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        inputMode={numbersOnly ? "numeric" : "text"}
+        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm shadow-sm transition-all focus:ring-4 focus:ring-indigo-500/5"
+      />
+    </div>
+  );
+};
 
 export default CreateListingModal;
