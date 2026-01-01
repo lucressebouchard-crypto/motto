@@ -23,11 +23,15 @@
     "supabase:check-bucket": "node scripts/check-storage-bucket.js",
     "supabase:diagnose": "node scripts/diagnose-storage.js",
     "supabase:fix-storage-rls": "node scripts/fix-storage-rls.js",
-    "supabase:verify-rls": "node scripts/verify-storage-rls.js"
+    "supabase:verify-rls": "node scripts/verify-storage-rls.js",
+    "supabase:auto-rls": "node scripts/auto-setup-storage-rls.js",
+    "supabase:full-auto": "node scripts/full-auto-rls.js",
+    "supabase:ultimate-auto": "node scripts/ultimate-auto-rls.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
     "lucide-react": "^0.562.0",
+    "pg": "^8.16.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
