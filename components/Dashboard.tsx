@@ -4,6 +4,8 @@ import { Settings, LogOut, TrendingUp, ShoppingBag, Eye, Heart, BarChart3, Rocke
 import { User, Listing } from '../types';
 import ListingCard from './ListingCard';
 import { listingService } from '../services/listingService';
+import EditListingModal from './EditListingModal';
+import AlertModal from './AlertModal';
 
 interface DashboardProps {
   user: User;
@@ -22,6 +24,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
   const [boostingId, setBoostingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [editingListing, setEditingListing] = useState<Listing | null>(null);
+  const [alert, setAlert] = useState<{ message: string; type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
 
   const mySales = listings.filter(l => l.sellerId === user.id);
   const myFavorites = listings.filter(l => favorites.includes(l.id));
@@ -45,16 +49,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
       }
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
-      alert('Erreur lors de la suppression de l\'annonce');
+      setAlert({ message: 'Erreur lors de la suppression de l\'annonce', type: 'error' });
     } finally {
       setDeletingId(null);
     }
   };
 
   const handleEdit = (listing: Listing) => {
-    // Pour l'instant, on peut ouvrir les détails de l'annonce
-    // TODO: Créer un modal d'édition
-    onSelectListing(listing);
+    setEditingListing(listing);
+  };
+
+  const handleEditSuccess = (updatedListing: Listing) => {
+    setEditingListing(null);
+    if (onListingUpdate) {
+      onListingUpdate();
+    }
   };
 
   return (
@@ -122,52 +131,54 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {mySales.map(listing => (
-                <div key={listing.id} className="bg-white border border-gray-100 rounded-[32px] p-4 flex gap-5 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                  <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 overflow-hidden rounded-[24px]">
-                    <img src={listing.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
-                    {listing.isBoosted && <div className="absolute top-1 right-1 bg-indigo-600 p-1 rounded-full text-white shadow-sm animate-pulse"><Rocket size={10} /></div>}
-                  </div>
-                  <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
-                    <div>
-                      <h4 className="font-black text-gray-900 truncate text-base">{listing.title}</h4>
-                      <p className="text-indigo-600 font-black text-base mt-1">{listing.price.toLocaleString()} FCFA</p>
+                <div key={listing.id} className="bg-white border border-gray-100 rounded-[32px] p-4 sm:p-5 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="relative w-full sm:w-24 sm:h-24 h-40 flex-shrink-0 overflow-hidden rounded-[24px]">
+                      <img src={listing.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                      {listing.isBoosted && <div className="absolute top-1 right-1 bg-indigo-600 p-1 rounded-full text-white shadow-sm animate-pulse"><Rocket size={10} /></div>}
                     </div>
-                    <div className="flex gap-3">
-                      {!listing.isBoosted && (
+                    <div className="flex-1 min-w-0 flex flex-col justify-between">
+                      <div className="mb-4">
+                        <h4 className="font-black text-gray-900 text-base sm:text-lg mb-1">{listing.title}</h4>
+                        <p className="text-indigo-600 font-black text-lg sm:text-xl">{listing.price.toLocaleString()} FCFA</p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                        {!listing.isBoosted && (
+                          <button 
+                            onClick={() => handleBoost(listing.id)} 
+                            disabled={boostingId === listing.id}
+                            className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-1.5 transition-all ${boostingId === listing.id ? 'bg-green-100 text-green-600 animate-pulse' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                          >
+                            {boostingId === listing.id ? (
+                               <><BarChart3 size={14} className="animate-spin" /> Activation...</>
+                            ) : (
+                               <><Rocket size={14} /> Booster</>
+                            )}
+                          </button>
+                        )}
+                        {listing.isBoosted && (
+                          <div className="bg-green-50 text-green-600 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-1.5 border border-green-100 flex-1 sm:flex-none">
+                            <CheckCircle size={14} /> Boosté
+                          </div>
+                        )}
                         <button 
-                          onClick={() => handleBoost(listing.id)} 
-                          disabled={boostingId === listing.id}
-                          className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-1.5 transition-all ${boostingId === listing.id ? 'bg-green-100 text-green-600 animate-pulse' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                          onClick={() => handleEdit(listing)}
+                          className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-[9px] font-black uppercase border border-gray-100 hover:bg-gray-50 flex items-center justify-center gap-1.5 text-gray-600"
                         >
-                          {boostingId === listing.id ? (
-                             <><BarChart3 size={14} className="animate-spin" /> Activation...</>
+                          <Edit2 size={12} /> Modifier
+                        </button>
+                        <button 
+                          onClick={() => setShowDeleteConfirm(listing.id)}
+                          className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-[9px] font-black uppercase border border-red-100 hover:bg-red-50 flex items-center justify-center gap-1.5 text-red-600"
+                          disabled={deletingId === listing.id}
+                        >
+                          {deletingId === listing.id ? (
+                            <>Suppression...</>
                           ) : (
-                             <><Rocket size={14} /> Booster l'annonce</>
+                            <><Trash2 size={12} /> Supprimer</>
                           )}
                         </button>
-                      )}
-                      {listing.isBoosted && (
-                        <div className="bg-green-50 text-green-600 px-4 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-1.5 border border-green-100">
-                          <CheckCircle size={14} /> Visibilité Max
-                        </div>
-                      )}
-                      <button 
-                        onClick={() => handleEdit(listing)}
-                        className="text-gray-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-gray-100 hover:bg-gray-50 flex items-center gap-1.5"
-                      >
-                        <Edit2 size={12} /> Modifier
-                      </button>
-                      <button 
-                        onClick={() => setShowDeleteConfirm(listing.id)}
-                        className="text-red-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-red-100 hover:bg-red-50 flex items-center gap-1.5"
-                        disabled={deletingId === listing.id}
-                      >
-                        {deletingId === listing.id ? (
-                          <>Suppression...</>
-                        ) : (
-                          <><Trash2 size={12} /> Supprimer</>
-                        )}
-                      </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -230,6 +241,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Listing Modal */}
+      {editingListing && (
+        <EditListingModal
+          listing={editingListing}
+          onClose={() => setEditingListing(null)}
+          onSuccess={handleEditSuccess}
+          currentUser={user}
+        />
+      )}
+
+      {/* Alert Modal */}
+      {alert && (
+        <AlertModal
+          message={alert.message}
+          type={alert.type}
+          onClose={() => setAlert(null)}
+        />
       )}
 
       {/* Logout Confirmation Dialog - REFINED */}

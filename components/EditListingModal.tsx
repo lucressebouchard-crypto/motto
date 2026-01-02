@@ -1,0 +1,433 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Camera, Upload, CheckCircle2, Loader2, Rocket, Trash2 } from 'lucide-react';
+import { Category, Listing, ItemStatus, User } from '../types';
+import { listingService } from '../services/listingService';
+import { imageService } from '../services/imageService';
+import AlertModal from './AlertModal';
+
+interface EditListingModalProps {
+  listing: Listing;
+  onClose: () => void;
+  onSuccess: (listing: Listing) => void;
+  currentUser: User | null;
+}
+
+const EditListingModal: React.FC<EditListingModalProps> = ({ listing, onClose, onSuccess, currentUser }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>(listing.images || []);
+  const [existingImages, setExistingImages] = useState<string[]>(listing.images || []);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [alert, setAlert] = useState<{ message: string; type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [formData, setFormData] = useState({
+    title: listing.title || '',
+    price: listing.price?.toString() || '',
+    category: listing.category || Category.CAR,
+    year: listing.year || new Date().getFullYear(),
+    mileage: listing.mileage?.toString() || '',
+    color: listing.color || '',
+    condition: listing.condition || 10,
+    description: listing.description || '',
+    location: listing.location || '',
+    status: listing.status || 'used' as ItemStatus
+  });
+
+  const handleImageSelect = (files: FileList | null) => {
+    if (!files) return;
+
+    const newFiles: File[] = [];
+    const newPreviews: string[] = [];
+
+    Array.from(files).forEach(file => {
+      const validation = imageService.validateImageFile(file);
+      if (!validation.valid) {
+        setAlert({ message: validation.error, type: 'error' });
+        return;
+      }
+
+      newFiles.push(file);
+      // Créer une preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          newPreviews.push(e.target.result as string);
+          setImagePreviews(prev => [...prev, ...newPreviews]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    setSelectedImages(prev => [...prev, ...newFiles]);
+  };
+
+  const removeImage = (index: number) => {
+    if (index < existingImages.length) {
+      // Supprimer une image existante
+      setExistingImages(prev => prev.filter((_, i) => i !== index));
+      setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    } else {
+      // Supprimer une nouvelle image
+      const newIndex = index - existingImages.length;
+      setSelectedImages(prev => prev.filter((_, i) => i !== newIndex));
+      setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!currentUser) {
+      setAlert({ message: 'Vous devez être connecté pour modifier une annonce', type: 'warning' });
+      return;
+    }
+
+    // Validation des champs obligatoires
+    if (!formData.title.trim()) {
+      setAlert({ message: 'Veuillez saisir un titre pour votre annonce', type: 'error' });
+      return;
+    }
+
+    if (!formData.price || formData.price.trim() === '' || isNaN(parseFloat(formData.price)) || parseFloat(formData.price) <= 0) {
+      setAlert({ message: 'Veuillez saisir un prix valide (supérieur à 0)', type: 'error' });
+      return;
+    }
+
+    if (!formData.description.trim()) {
+      setAlert({ message: 'Veuillez saisir une description pour votre annonce', type: 'error' });
+      return;
+    }
+
+    if (!formData.color.trim()) {
+      setAlert({ message: 'Veuillez saisir une couleur', type: 'error' });
+      return;
+    }
+
+    if (!formData.location.trim()) {
+      setAlert({ message: 'Veuillez saisir une localisation', type: 'error' });
+      return;
+    }
+
+    if (imagePreviews.length === 0) {
+      setAlert({ message: 'Veuillez garder au moins une image', type: 'error' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setUploadingImages(selectedImages.length > 0);
+    
+    try {
+      let finalImages = existingImages;
+
+      // Upload des nouvelles images si nécessaire
+      if (selectedImages.length > 0) {
+        const newImageUrls = await imageService.uploadMultipleImages(selectedImages, currentUser.id);
+        finalImages = [...existingImages, ...newImageUrls];
+      }
+      
+      setUploadingImages(false);
+
+      // Convertir le prix en nombre (avec validation)
+      const price = parseFloat(formData.price);
+      if (isNaN(price) || price <= 0) {
+        throw new Error('Le prix doit être un nombre positif');
+      }
+
+      // Mettre à jour l'annonce
+      const updatedListing = await listingService.update(listing.id, {
+        title: formData.title.trim(),
+        price: price,
+        category: formData.category,
+        images: finalImages,
+        year: formData.year,
+        mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
+        color: formData.color.trim(),
+        condition: formData.condition,
+        description: formData.description.trim(),
+        sellerId: currentUser.id,
+        sellerType: currentUser.role === 'seller' ? 'pro' : 'individual',
+        status: formData.status,
+        location: formData.location.trim() || 'Abidjan, CI',
+      });
+      
+      onSuccess(updatedListing);
+      setIsSubmitting(false);
+      setIsSuccess(true);
+      
+      // Auto close after 2 seconds
+      setTimeout(onClose, 2000);
+    } catch (error: any) {
+      console.error('Erreur lors de la modification de l\'annonce:', error);
+      setAlert({ message: error.message || 'Erreur lors de la modification de l\'annonce', type: 'error' });
+      setIsSubmitting(false);
+      setUploadingImages(false);
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        <div className="bg-white w-full max-w-sm rounded-[32px] z-10 p-10 flex flex-col items-center text-center animate-bounce-in shadow-2xl">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-6 animate-pulse">
+            <CheckCircle2 size={48} strokeWidth={3} />
+          </div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">Modification réussie !</h2>
+          <p className="text-gray-500 font-bold">Votre annonce "<strong>{formData.title}</strong>" a été mise à jour.</p>
+        </div>
+        <style>{`
+          @keyframes bounce-in {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); opacity: 1; }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+          }
+          .animate-bounce-in {
+            animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {alert && (
+        <AlertModal
+          message={alert.message}
+          type={alert.type}
+          onClose={() => setAlert(null)}
+        />
+      )}
+      <div className="fixed inset-0 z-[60] flex items-end justify-center">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div className="bg-white w-full max-w-md h-[90vh] rounded-t-[32px] z-10 flex flex-col animate-slide-up relative">
+          <div className="p-6 flex items-center justify-between border-b shrink-0">
+            <h2 className="text-xl font-black text-gray-900">Modifier l'annonce</h2>
+            <button onClick={onClose} className="p-2 bg-gray-100 rounded-full text-gray-500 transition-transform active:scale-90">
+              <X size={20} />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 pb-20 no-scrollbar">
+            {/* Image Upload Section */}
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Photos de l'annonce</label>
+              
+              {/* Preview des images existantes et nouvelles */}
+              {imagePreviews.length > 0 && (
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {imagePreviews.map((preview, index) => (
+                    <div key={index} className="relative aspect-square rounded-2xl overflow-hidden group">
+                      <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Boutons d'upload */}
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => handleImageSelect(e.target.files)}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 gap-2 hover:border-indigo-300 hover:text-indigo-400 transition-all cursor-pointer"
+                >
+                  <Camera size={24} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Photo</span>
+                </button>
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => handleImageSelect(e.target.files)}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 gap-2 hover:border-indigo-300 hover:text-indigo-400 transition-all cursor-pointer"
+                >
+                  <Upload size={24} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Galerie</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <Input label="Titre de l'annonce" placeholder="Ex: Audi A3 Sportback" value={formData.title} onChange={v => setFormData({...formData, title: v})} required />
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Prix (FCFA)" type="text" placeholder="0.00" value={formData.price} onChange={v => setFormData({...formData, price: v})} required numbersOnly={true} />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Catégorie</label>
+                  <select 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm appearance-none shadow-sm"
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value as Category})}
+                  >
+                    <option value={Category.CAR}>Voiture</option>
+                    <option value={Category.MOTO}>Moto</option>
+                    <option value={Category.ACCESSORY}>Accessoire</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Kilométrage" type="text" placeholder="Ex: 50000" value={formData.mileage} onChange={v => setFormData({...formData, mileage: v})} numbersOnly={true} allowDecimals={false} />
+                <Input label="Année" type="text" placeholder="2023" value={formData.year.toString()} onChange={v => {
+                  const yearValue = v.replace(/[^0-9]/g, '');
+                  if (yearValue === '' || (!isNaN(parseInt(yearValue)) && parseInt(yearValue) > 0)) {
+                    setFormData({...formData, year: yearValue ? parseInt(yearValue) : formData.year});
+                  }
+                }} required numbersOnly={true} allowDecimals={false} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Couleur" placeholder="Noir mat" value={formData.color} onChange={v => setFormData({...formData, color: v})} required />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">État ({formData.condition}/10)</label>
+                  <input 
+                    type="range" min="1" max="10" 
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={formData.condition}
+                    onChange={(e) => setFormData({...formData, condition: parseInt(e.target.value)})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Ville / Quartier" placeholder="Ex: Abidjan, Cocody" value={formData.location} onChange={v => setFormData({...formData, location: v})} required />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Statut</label>
+                  <select 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm appearance-none shadow-sm"
+                    value={formData.status}
+                    onChange={(e) => setFormData({...formData, status: e.target.value as ItemStatus})}
+                  >
+                    <option value="used">Occasion</option>
+                    <option value="new">Neuf</option>
+                    <option value="imported">Importé</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Description</label>
+                <textarea 
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm min-h-[120px] shadow-sm"
+                  placeholder="Détaillez votre annonce (options, entretien...)"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                />
+              </div>
+            </div>
+          </form>
+
+          <div className="p-6 border-t bg-white shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
+            <button 
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="w-full bg-indigo-600 text-white py-4.5 rounded-2xl font-black shadow-xl shadow-indigo-100 active:scale-95 disabled:opacity-70 disabled:active:scale-100 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm"
+            >
+              {uploadingImages ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  Upload des images...
+                </>
+              ) : isSubmitting ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                'Enregistrer les modifications'
+              )}
+            </button>
+          </div>
+        </div>
+        <style>{`
+          @keyframes slide-up {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+          }
+          .animate-slide-up {
+            animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          }
+        `}</style>
+      </div>
+    </>
+  );
+};
+
+const Input: React.FC<{ label: string, value: string, onChange: (v: string) => void, placeholder?: string, type?: string, required?: boolean, numbersOnly?: boolean, allowDecimals?: boolean }> = ({ label, value, onChange, placeholder, type = "text", required, numbersOnly = false, allowDecimals = true }) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (numbersOnly) {
+      if (allowDecimals) {
+        // Autoriser uniquement les chiffres (0-9) et le point pour les décimales (prix)
+        const newValue = e.target.value.replace(/[^0-9.]/g, '');
+        // Éviter plusieurs points
+        const parts = newValue.split('.');
+        if (parts.length > 2) {
+          return;
+        }
+        onChange(newValue);
+      } else {
+        // Autoriser uniquement les chiffres entiers (kilométrage, année)
+        const newValue = e.target.value.replace(/[^0-9]/g, '');
+        onChange(newValue);
+      }
+    } else {
+      onChange(e.target.value);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (numbersOnly) {
+      // Autoriser: chiffres, point (si allowDecimals), backspace, delete, tab, escape, enter, flèches
+      const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+      const isNumber = /[0-9]/.test(e.key);
+      const isPoint = e.key === '.' && allowDecimals;
+      
+      if (!isNumber && !isPoint && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">{label}</label>
+      <input 
+        type={type}
+        placeholder={placeholder}
+        required={required}
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        inputMode={numbersOnly ? "numeric" : "text"}
+        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm shadow-sm transition-all focus:ring-4 focus:ring-indigo-500/5"
+      />
+    </div>
+  );
+};
+
+export default EditListingModal;
+
