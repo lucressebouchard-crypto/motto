@@ -4,10 +4,11 @@ import {
   ChevronLeft, ChevronRight, Share2, Heart, ShieldCheck, 
   Calendar, Gauge, Palette, Star, MessageCircle, 
   MapPin, Store, User as UserIcon, Wrench, ShieldAlert,
-  ArrowRight, Check
+  ArrowRight, Check, Send
 } from 'lucide-react';
 import { Listing, User } from '../types';
 import ListingCard from './ListingCard';
+import { chatService } from '../services/chatService';
 
 interface ListingDetailsProps {
   listing: Listing;
@@ -31,6 +32,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNew = listing.status === 'new';
   const [showExpertSelection, setShowExpertSelection] = useState(false);
+  const [messageText, setMessageText] = useState('Bonjour, je suis intéressé(e) par votre annonce.');
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   const formatFCFA = (p: number) => p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " FCFA";
 
@@ -92,6 +95,47 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
     imported: 'Importé (Venu)' 
   };
 
+  const handleSendMessage = async () => {
+    if (!currentUser) {
+      // Rediriger vers l'authentification
+      onMessage();
+      return;
+    }
+
+    if (!messageText.trim()) {
+      return;
+    }
+
+    setSendingMessage(true);
+    try {
+      // Vérifier si un chat existe déjà
+      const existingChats = await chatService.getByParticipant(currentUser.id);
+      let chat = existingChats.find(c => 
+        c.participants.includes(listing.sellerId) && 
+        c.listingId === listing.id
+      );
+
+      // Créer le chat s'il n'existe pas
+      if (!chat) {
+        chat = await chatService.create({
+          participantIds: [currentUser.id, listing.sellerId],
+          listingId: listing.id,
+        });
+      }
+
+      // Envoyer le message
+      await chatService.sendMessage(chat.id, currentUser.id, messageText.trim());
+
+      // Ouvrir le chat
+      onMessage();
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi du message:', error);
+      alert('Erreur lors de l\'envoi du message. Veuillez réessayer.');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   return (
     <div className="bg-white min-h-full">
       {/* Toast Feedback for Copy */}
@@ -142,7 +186,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
         </div>
 
         {/* Right Side: Details Information */}
-        <div className="p-6 sm:p-10 lg:p-12 space-y-10 lg:overflow-y-auto lg:h-screen lg:pb-32">
+        <div className="p-6 sm:p-10 lg:p-12 space-y-10 lg:overflow-y-auto lg:h-screen lg:pb-8">
           <div className="space-y-6">
             <div className="flex flex-wrap gap-3">
               <span className={`text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest text-white shadow-sm flex items-center gap-2 ${listing.sellerType === 'pro' ? 'bg-indigo-600' : 'bg-gray-800'}`}>
@@ -204,6 +248,49 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
             </p>
           </div>
 
+          {/* Contact Section - Chat Trigger */}
+          <div className="space-y-4 pt-4">
+            <h3 className="font-black text-gray-900 uppercase tracking-widest text-xs border-b border-gray-100 pb-3 flex items-center gap-2">
+               <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></div>
+               Contacter le vendeur
+            </h3>
+            <div className="bg-gray-50 rounded-3xl border border-gray-100 p-4 sm:p-5 space-y-4">
+              <div className="flex gap-3">
+                <textarea
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  placeholder="Bonjour, je suis intéressé(e) par votre annonce."
+                  className="flex-1 min-h-[100px] px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  rows={3}
+                />
+                <button
+                  onClick={() => window.open(`https://wa.me/2250700000000?text=${encodeURIComponent(messageText)}`, '_blank')}
+                  className="self-start p-3 bg-[#25D366] text-white rounded-2xl shadow-md shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all flex items-center justify-center"
+                  title="Contacter via WhatsApp"
+                >
+                  <WhatsAppIcon size={24} />
+                </button>
+              </div>
+              <button
+                onClick={handleSendMessage}
+                disabled={sendingMessage || !messageText.trim()}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {sendingMessage ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Envoi...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={18} />
+                    <span>Envoyer sur MƆ̆TTO</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
           {/* Similar Listings Carousel */}
           {similarListings.length > 0 && (
             <div className="space-y-6 pt-10">
@@ -231,44 +318,6 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Floating Action Bar - Mobile */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-xl z-40 bg-white/80 backdrop-blur-2xl p-4 rounded-[40px] border border-white shadow-2xl flex gap-4 animate-in fade-in slide-in-from-bottom duration-500 lg:hidden">
-        <button 
-          onClick={onMessage} 
-          className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black flex flex-col items-center justify-center gap-1 shadow-lg shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all"
-        >
-          <MessageCircle size={24} fill="currentColor" />
-          <span className="text-[10px] uppercase tracking-widest">Chatter sur MƆ̆TTO</span>
-        </button>
-        <button 
-          onClick={() => window.open(`https://wa.me/2250700000000`, '_blank')} 
-          className="flex-1 bg-[#25D366] text-white py-4 rounded-2xl font-black flex flex-col items-center justify-center gap-1 shadow-lg shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all"
-        >
-          <WhatsAppIcon size={24} />
-          <span className="text-[10px] uppercase tracking-widest">WhatsApp</span>
-        </button>
-      </div>
-
-      {/* Fixed Action Bar - Desktop (compact, integrated in right panel) */}
-      <div className="hidden lg:block fixed bottom-8 right-12 z-40">
-        <div className="bg-white/95 backdrop-blur-xl p-3 rounded-2xl border border-gray-100 shadow-xl flex gap-3">
-          <button 
-            onClick={onMessage} 
-            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all whitespace-nowrap"
-          >
-            <MessageCircle size={18} fill="currentColor" />
-            <span>Chatter</span>
-          </button>
-          <button 
-            onClick={() => window.open(`https://wa.me/2250700000000`, '_blank')} 
-            className="bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all whitespace-nowrap"
-          >
-            <WhatsAppIcon size={18} />
-            <span>WhatsApp</span>
-          </button>
         </div>
       </div>
 
