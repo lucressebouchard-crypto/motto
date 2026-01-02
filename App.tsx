@@ -339,8 +339,6 @@ const App: React.FC = () => {
           ) : activeTab === 'mechanics' ? (
             <MechanicFeed mechanics={mechanics} onContact={(m) => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} />
           ) : (
-            <MechanicFeed mechanics={mechanics} onContact={(m) => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} />
-          ) : (
             <Feed activeTab={activeTab} listings={filteredListings} onSelectListing={setSelectedListing} searchQuery={searchQuery} setSearchQuery={setSearchQuery} favorites={favorites} onToggleFavorite={toggleFavorite} />
           )}
         </div>
