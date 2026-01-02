@@ -287,26 +287,25 @@ const App: React.FC = () => {
                 onLogout={async () => {
                   try {
                     console.log('🔄 [App] Logout initiated (mechanic)');
-                    // Nettoyer l'état local d'abord pour éviter les conflits
-                    resetViews();
-                    setFavorites([]);
-                    setUnreadNotificationsCount(0);
                     // Effectuer la déconnexion
                     await authService.signOut();
                     // Attendre un peu pour que l'événement onAuthStateChange se déclenche
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    // S'assurer que l'état est bien nettoyé
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Nettoyer l'état local après déconnexion réussie
                     setCurrentUser(null);
                     setActiveTab('home');
+                    resetViews();
+                    setFavorites([]);
+                    setUnreadNotificationsCount(0);
                     console.log('✅ [App] Logout complete (mechanic)');
                   } catch (error) {
                     console.error('❌ [App] Erreur lors de la déconnexion:', error);
                     // Nettoyer quand même l'état local même en cas d'erreur
                     setCurrentUser(null);
                     setActiveTab('home');
+                    resetViews();
                     setFavorites([]);
                     setUnreadNotificationsCount(0);
-                    resetViews();
                   }
                 }} 
                 onExit={() => setActiveTab('home')}
@@ -337,26 +336,25 @@ const App: React.FC = () => {
               }} onLogout={async () => {
                   try {
                     console.log('🔄 [App] Logout initiated');
-                    // Nettoyer l'état local d'abord pour éviter les conflits
-                    resetViews();
-                    setFavorites([]);
-                    setUnreadNotificationsCount(0);
                     // Effectuer la déconnexion
                     await authService.signOut();
                     // Attendre un peu pour que l'événement onAuthStateChange se déclenche
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    // S'assurer que l'état est bien nettoyé
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Nettoyer l'état local après déconnexion réussie
                     setCurrentUser(null);
                     setActiveTab('home');
+                    resetViews();
+                    setFavorites([]);
+                    setUnreadNotificationsCount(0);
                     console.log('✅ [App] Logout complete');
                   } catch (error) {
                     console.error('❌ [App] Erreur lors de la déconnexion:', error);
                     // Nettoyer quand même l'état local même en cas d'erreur
                     setCurrentUser(null);
                     setActiveTab('home');
+                    resetViews();
                     setFavorites([]);
                     setUnreadNotificationsCount(0);
-                    resetViews();
                   }
                 }} />
             )
