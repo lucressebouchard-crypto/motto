@@ -231,11 +231,11 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4 sm:gap-6">
-            <DetailItem icon={<Calendar size={24}/>} label="Année" value={listing.year.toString()} />
-            <DetailItem icon={<Gauge size={24}/>} label="Kilométrage" value={listing.mileage !== undefined && listing.mileage > 0 ? `${listing.mileage.toLocaleString()} KM` : 'NEUF'} />
-            <DetailItem icon={<Palette size={24}/>} label="Couleur" value={listing.color} />
-            <DetailItem icon={<Star size={24}/>} label="État" value={isNew ? 'Article Neuf' : `${listing.condition} / 10`} isHighlight={isNew} />
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:gap-6">
+            <DetailItem icon={<Calendar className="w-5 h-5 sm:w-6 sm:h-6"/>} label="Année" value={listing.year.toString()} />
+            <DetailItem icon={<Gauge className="w-5 h-5 sm:w-6 sm:h-6"/>} label="Kilométrage" value={listing.mileage !== undefined && listing.mileage > 0 ? `${listing.mileage.toLocaleString()} KM` : 'NEUF'} />
+            <DetailItem icon={<Palette className="w-5 h-5 sm:w-6 sm:h-6"/>} label="Couleur" value={listing.color} />
+            <DetailItem icon={<Star className="w-5 h-5 sm:w-6 sm:h-6"/>} label="État" value={isNew ? 'Article Neuf' : `${listing.condition} / 10`} isHighlight={isNew} />
           </div>
 
           <div className="space-y-4">
@@ -356,11 +356,11 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
 };
 
 const DetailItem: React.FC<{ icon: React.ReactNode, label: string, value: string, isHighlight?: boolean }> = ({ icon, label, value, isHighlight }) => (
-  <div className={`p-5 rounded-3xl flex items-center gap-5 border transition-all hover:shadow-lg ${isHighlight ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100 hover:border-indigo-100'}`}>
-    <div className={`${isHighlight ? 'text-green-600' : 'text-indigo-600'} bg-white p-3.5 rounded-2xl shadow-sm border border-gray-50`}>{icon}</div>
-    <div>
-      <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">{label}</p>
-      <p className={`text-sm sm:text-base font-black ${isHighlight ? 'text-green-600' : 'text-gray-800'}`}>{value}</p>
+  <div className={`p-3 sm:p-4 md:p-5 rounded-2xl sm:rounded-3xl flex items-center gap-2.5 sm:gap-4 md:gap-5 border transition-all hover:shadow-lg ${isHighlight ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100 hover:border-indigo-100'}`}>
+    <div className={`${isHighlight ? 'text-green-600' : 'text-indigo-600'} bg-white p-2 sm:p-3 md:p-3.5 rounded-xl sm:rounded-2xl shadow-sm border border-gray-50 shrink-0`}>{icon}</div>
+    <div className="min-w-0 flex-1">
+      <p className="text-[9px] sm:text-[10px] text-gray-400 uppercase font-black tracking-wider sm:tracking-widest mb-0.5 sm:mb-1 truncate">{label}</p>
+      <p className={`text-xs sm:text-sm md:text-base font-black truncate ${isHighlight ? 'text-green-600' : 'text-gray-800'}`}>{value}</p>
     </div>
   </div>
 );
