@@ -234,22 +234,42 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
         </div>
       </div>
 
-      {/* Floating Action Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-xl lg:max-w-2xl z-40 bg-white/80 backdrop-blur-2xl p-4 rounded-[40px] border border-white shadow-2xl flex gap-4 animate-in fade-in slide-in-from-bottom duration-500">
+      {/* Floating Action Bar - Mobile */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-xl z-40 bg-white/80 backdrop-blur-2xl p-4 rounded-[40px] border border-white shadow-2xl flex gap-4 animate-in fade-in slide-in-from-bottom duration-500 lg:hidden">
         <button 
           onClick={onMessage} 
-          className="flex-1 bg-indigo-600 text-white py-4 lg:py-5 rounded-2xl font-black flex flex-col items-center justify-center gap-1 shadow-lg shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all"
+          className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black flex flex-col items-center justify-center gap-1 shadow-lg shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all"
         >
           <MessageCircle size={24} fill="currentColor" />
           <span className="text-[10px] uppercase tracking-widest">Chatter sur MƆ̆TTO</span>
         </button>
         <button 
           onClick={() => window.open(`https://wa.me/2250700000000`, '_blank')} 
-          className="flex-1 bg-[#25D366] text-white py-4 lg:py-5 rounded-2xl font-black flex flex-col items-center justify-center gap-1 shadow-lg shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all"
+          className="flex-1 bg-[#25D366] text-white py-4 rounded-2xl font-black flex flex-col items-center justify-center gap-1 shadow-lg shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all"
         >
           <WhatsAppIcon size={24} />
           <span className="text-[10px] uppercase tracking-widest">WhatsApp</span>
         </button>
+      </div>
+
+      {/* Fixed Action Bar - Desktop (compact, integrated in right panel) */}
+      <div className="hidden lg:block fixed bottom-8 right-12 z-40">
+        <div className="bg-white/95 backdrop-blur-xl p-3 rounded-2xl border border-gray-100 shadow-xl flex gap-3">
+          <button 
+            onClick={onMessage} 
+            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all whitespace-nowrap"
+          >
+            <MessageCircle size={18} fill="currentColor" />
+            <span>Chatter</span>
+          </button>
+          <button 
+            onClick={() => window.open(`https://wa.me/2250700000000`, '_blank')} 
+            className="bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all whitespace-nowrap"
+          >
+            <WhatsAppIcon size={18} />
+            <span>WhatsApp</span>
+          </button>
+        </div>
       </div>
 
       {/* Expert Selection Modal Overlay */}
