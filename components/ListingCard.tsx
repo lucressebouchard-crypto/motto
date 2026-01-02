@@ -74,47 +74,47 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick, boosted, is
             TOP ANNONCE
           </div>
         )}
-        
-        {/* Price Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 sm:p-5">
-          <p className={`text-white font-black tracking-tight drop-shadow-lg ${boosted ? 'text-xl sm:text-2xl' : 'text-sm sm:text-base'}`}>
-            {formatFCFA(listing.price)}
-          </p>
-        </div>
 
         {/* Quick Favorite Button */}
         <button 
           onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
-          className={`absolute bottom-4 right-4 p-2.5 rounded-full backdrop-blur-md transition-all active:scale-75 z-20 ${isFavorite ? 'bg-red-500 text-white shadow-red-200' : 'bg-white/20 text-white hover:bg-white hover:text-red-500'}`}
+          className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all active:scale-75 z-20 ${isFavorite ? 'bg-red-500 text-white shadow-red-200' : 'bg-white/90 text-gray-700 hover:bg-red-500 hover:text-white'}`}
         >
           <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
         </button>
       </div>
       
-      <div className="p-4 sm:p-5 space-y-4 flex-1 flex flex-col">
-        <h3 className={`font-black text-gray-900 group-hover:text-indigo-600 transition-colors leading-snug line-clamp-2 ${boosted ? 'text-lg' : 'text-sm'}`}>
+      <div className="p-4 sm:p-5 md:p-6 flex-1 flex flex-col space-y-3 sm:space-y-4">
+        <h3 className={`font-black text-gray-900 group-hover:text-indigo-600 transition-colors leading-snug line-clamp-2 ${boosted ? 'text-base sm:text-lg' : 'text-sm sm:text-base'}`}>
           {listing.title}
         </h3>
         
-        <div className="space-y-3 mt-auto pt-2 border-t border-gray-50">
-          <div className="flex items-center gap-2 text-[11px] text-gray-500 font-bold">
+        {/* Price - Prominent */}
+        <div className="py-2">
+          <p className={`text-indigo-600 font-black tracking-tight ${boosted ? 'text-xl sm:text-2xl' : 'text-lg sm:text-xl'}`}>
+            {formatFCFA(listing.price)}
+          </p>
+        </div>
+        
+        <div className="space-y-2.5 sm:space-y-3 mt-auto pt-2 border-t border-gray-50">
+          <div className="flex items-center gap-2 text-xs sm:text-[11px] text-gray-600 font-bold">
             <MapPin size={14} className="text-red-500 shrink-0" />
             <span className="truncate">{listing.location}</span>
           </div>
           
-          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-400">
-            <div className="flex items-center gap-2">
-              <Calendar size={14} className="text-indigo-500" />
-              <span>{listing.year}</span>
+          <div className="flex items-center justify-between gap-3 text-[10px] sm:text-[11px] font-black uppercase tracking-widest">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Calendar size={14} className="text-indigo-500 shrink-0" />
+              <span className="text-gray-500">{listing.year}</span>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <Star 
                 size={14} 
-                className={isNew ? "text-green-500" : "text-indigo-500"} 
+                className={`shrink-0 ${isNew ? "text-green-500" : "text-indigo-500"}`}
                 fill={isNew ? "currentColor" : "none"} 
               />
-              <span className={isNew ? "text-green-600" : ""}>
+              <span className={isNew ? "text-green-600" : "text-gray-500"}>
                 {isNew ? 'NEUF' : `ÉTAT ${listing.condition}/10`}
               </span>
             </div>
