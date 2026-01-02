@@ -113,6 +113,21 @@ export const authService = {
   async signIn(signInData: SignInData) {
     console.log('🔐 [signIn] Starting signin for:', signInData.email);
     
+    // Vérifier s'il y a une session active et se déconnecter proprement d'abord
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (currentSession) {
+      console.log('⚠️ [signIn] Active session detected for user:', currentSession.user.id, '- Signing out first...');
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+        // Attendre un peu pour que la déconnexion se termine
+        await new Promise(resolve => setTimeout(resolve, 200));
+        console.log('✅ [signIn] Previous session signed out');
+      } catch (signOutError) {
+        console.warn('⚠️ [signIn] Error signing out previous session:', signOutError);
+        // Continuer quand même avec la nouvelle connexion
+      }
+    }
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email: signInData.email,
       password: signInData.password,
@@ -127,7 +142,21 @@ export const authService = {
     console.log('📋 [signIn] Session:', data.session ? 'session exists' : 'no session');
     
     // Attendre un peu pour que la session soit bien établie
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Vérifier que la session est bien active
+    const { data: { session: newSession } } = await supabase.auth.getSession();
+    if (!newSession) {
+      console.warn('⚠️ [signIn] Session not found after signin, retrying...');
+      // Attendre encore un peu et réessayer
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const { data: { session: retrySession } } = await supabase.auth.getSession();
+      if (!retrySession) {
+        console.error('❌ [signIn] Session still not found after retry');
+        throw new Error('La session n\'a pas pu être établie. Veuillez réessayer.');
+      }
+      console.log('✅ [signIn] Session found after retry');
+    }
     
     return data;
   },
@@ -135,23 +164,55 @@ export const authService = {
   async signOut() {
     console.log('🚪 [signOut] Starting signout...');
     
-    const { error } = await supabase.auth.signOut();
-    
-    if (error) {
-      console.error('❌ [signOut] Signout error:', error);
-      throw error;
-    }
-    
-    console.log('✅ [signOut] Signout successful');
-    
-    // Vérifier que la session est bien supprimée
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      console.warn('⚠️ [signOut] Session still exists after signout, trying again...');
-      // Essayer une deuxième fois
-      await supabase.auth.signOut();
-    } else {
-      console.log('✅ [signOut] Session confirmed deleted');
+    try {
+      // Vérifier l'état actuel de la session
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession) {
+        console.log('🔍 [signOut] Current session user:', currentSession.user.id);
+      }
+      
+      // Déconnexion principale
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      
+      if (error) {
+        console.error('❌ [signOut] Signout error:', error);
+        // Même en cas d'erreur, on continue pour nettoyer localement
+      }
+      
+      console.log('✅ [signOut] Signout call completed');
+      
+      // Vérifier et nettoyer plusieurs fois si nécessaire
+      let attempts = 0;
+      const maxAttempts = 3;
+      while (attempts < maxAttempts) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.log('✅ [signOut] Session confirmed deleted after', attempts + 1, 'attempt(s)');
+          break;
+        }
+        attempts++;
+        console.warn(`⚠️ [signOut] Session still exists (attempt ${attempts}/${maxAttempts}), retrying...`);
+        await supabase.auth.signOut({ scope: 'global' });
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Nettoyer le localStorage manuellement au cas où
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+          if (key.startsWith('sb-') && key.includes('auth-token')) {
+            localStorage.removeItem(key);
+          }
+        });
+        console.log('🧹 [signOut] LocalStorage cleaned');
+      } catch (storageError) {
+        console.warn('⚠️ [signOut] Could not clean localStorage:', storageError);
+      }
+      
+      console.log('✅ [signOut] Signout process complete');
+    } catch (error) {
+      console.error('❌ [signOut] Unexpected error during signout:', error);
+      // Ne pas throw pour permettre le nettoyage local même en cas d'erreur
     }
   },
 

@@ -46,8 +46,18 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
 
       console.log('✅ [AuthPage] SignIn successful, fetching user profile...');
 
-      // Récupérer le profil utilisateur
-      const user = await authService.getCurrentUser();
+      // Attendre un peu pour que la session soit bien établie
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Récupérer le profil utilisateur avec retry si nécessaire
+      let user = await authService.getCurrentUser();
+      
+      // Si user est null, réessayer après un court délai
+      if (!user) {
+        console.warn('⚠️ [AuthPage] getCurrentUser returned null, retrying...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        user = await authService.getCurrentUser();
+      }
       
       console.log('📋 [AuthPage] getCurrentUser returned:', user ? 'user found' : 'null');
       
@@ -55,7 +65,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onSuccess }) => {
         console.log('✅ [AuthPage] Login complete, calling onSuccess');
         onSuccess(user);
       } else {
-        console.error('❌ [AuthPage] No user profile found');
+        console.error('❌ [AuthPage] No user profile found after retries');
         throw new Error('Impossible de récupérer le profil utilisateur. Le compte existe mais le profil n\'est pas accessible.');
       }
     } catch (err: any) {
