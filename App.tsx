@@ -242,6 +242,44 @@ const App: React.FC = () => {
             <NotificationList onClose={() => setShowNotifications(false)} currentUser={currentUser} />
           ) : showChats ? (
             <ChatList onClose={() => setShowChats(false)} currentUser={currentUser} />
+          ) : selectedListing ? (
+            <ListingDetails 
+              listing={selectedListing} 
+              onBack={() => setSelectedListing(null)} 
+              onMessage={async () => {
+                if (!currentUser) {
+                  setActiveTab('auth');
+                  return;
+                }
+                try {
+                  // Créer ou récupérer un chat avec le vendeur
+                  const existingChats = await chatService.getByParticipant(currentUser.id);
+                  let chat = existingChats.find(c => 
+                    c.participants.includes(selectedListing.sellerId) && 
+                    c.listingId === selectedListing.id
+                  );
+                  
+                  if (!chat) {
+                    chat = await chatService.create({
+                      participantIds: [currentUser.id, selectedListing.sellerId],
+                      listingId: selectedListing.id,
+                    });
+                  }
+                  
+                  resetViews();
+                  setShowChats(true);
+                } catch (error) {
+                  console.error('Erreur lors de la création du chat:', error);
+                  alert('Erreur lors de la création de la conversation');
+                }
+              }}
+              isFavorite={favorites.includes(selectedListing.id)} 
+              onToggleFavorite={() => toggleFavorite(selectedListing.id)} 
+              currentUser={currentUser} 
+              mechanics={mechanics} 
+              listings={listings}
+              onSelectListing={setSelectedListing}
+            />
           ) : activeTab === 'profile' && currentUser ? (
             currentUser.role === 'mechanic' ? (
               <MechanicDashboard 
@@ -298,45 +336,9 @@ const App: React.FC = () => {
                   }
                 }} />
             )
-          ) : selectedListing ? (
-            <ListingDetails 
-              listing={selectedListing} 
-              onBack={() => setSelectedListing(null)} 
-              onMessage={async () => {
-                if (!currentUser) {
-                  setActiveTab('auth');
-                  return;
-                }
-                try {
-                  // Créer ou récupérer un chat avec le vendeur
-                  const existingChats = await chatService.getByParticipant(currentUser.id);
-                  let chat = existingChats.find(c => 
-                    c.participants.includes(listing.sellerId) && 
-                    c.listingId === listing.id
-                  );
-                  
-                  if (!chat) {
-                    chat = await chatService.create({
-                      participantIds: [currentUser.id, listing.sellerId],
-                      listingId: listing.id,
-                    });
-                  }
-                  
-                  resetViews();
-                  setShowChats(true);
-                } catch (error) {
-                  console.error('Erreur lors de la création du chat:', error);
-                  alert('Erreur lors de la création de la conversation');
-                }
-              }}
-              isFavorite={favorites.includes(selectedListing.id)} 
-              onToggleFavorite={() => toggleFavorite(selectedListing.id)} 
-              currentUser={currentUser} 
-              mechanics={mechanics} 
-              listings={listings}
-              onSelectListing={setSelectedListing}
-            />
           ) : activeTab === 'mechanics' ? (
+            <MechanicFeed mechanics={mechanics} onContact={(m) => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} />
+          ) : (
             <MechanicFeed mechanics={mechanics} onContact={(m) => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} />
           ) : (
             <Feed activeTab={activeTab} listings={filteredListings} onSelectListing={setSelectedListing} searchQuery={searchQuery} setSearchQuery={setSearchQuery} favorites={favorites} onToggleFavorite={toggleFavorite} />
