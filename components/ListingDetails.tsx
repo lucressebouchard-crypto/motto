@@ -248,48 +248,50 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
             </p>
           </div>
 
-          {/* Contact Section - Chat Trigger */}
-          <div className="space-y-4 pt-4">
-            <h3 className="font-black text-gray-900 uppercase tracking-widest text-xs border-b border-gray-100 pb-3 flex items-center gap-2">
-               <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></div>
-               Contacter le vendeur
-            </h3>
-            <div className="bg-gray-50 rounded-3xl border border-gray-100 p-4 sm:p-5 space-y-4">
-              <div className="flex gap-3">
-                <textarea
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  placeholder="Bonjour, je suis intéressé(e) par votre annonce."
-                  className="flex-1 min-h-[100px] px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                  rows={3}
-                />
+          {/* Contact Section - Chat Trigger (only show if user is not the seller) */}
+          {(!currentUser || currentUser.id !== listing.sellerId) && (
+            <div className="space-y-4 pt-4">
+              <h3 className="font-black text-gray-900 uppercase tracking-widest text-xs border-b border-gray-100 pb-3 flex items-center gap-2">
+                 <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></div>
+                 Contacter le vendeur
+              </h3>
+              <div className="bg-gray-50 rounded-3xl border border-gray-100 p-4 sm:p-5 space-y-4">
+                <div className="flex gap-3">
+                  <textarea
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    placeholder="Bonjour, je suis intéressé(e) par votre annonce."
+                    className="flex-1 min-h-[100px] px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                    rows={3}
+                  />
+                  <button
+                    onClick={() => window.open(`https://wa.me/2250700000000?text=${encodeURIComponent(messageText)}`, '_blank')}
+                    className="self-start p-3 bg-[#25D366] text-white rounded-2xl shadow-md shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all flex items-center justify-center"
+                    title="Contacter via WhatsApp"
+                  >
+                    <WhatsAppIcon size={24} />
+                  </button>
+                </div>
                 <button
-                  onClick={() => window.open(`https://wa.me/2250700000000?text=${encodeURIComponent(messageText)}`, '_blank')}
-                  className="self-start p-3 bg-[#25D366] text-white rounded-2xl shadow-md shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all flex items-center justify-center"
-                  title="Contacter via WhatsApp"
+                  onClick={handleSendMessage}
+                  disabled={sendingMessage || !messageText.trim()}
+                  className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  <WhatsAppIcon size={24} />
+                  {sendingMessage ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Envoi...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={18} />
+                      <span>Envoyer sur MƆ̆TTO</span>
+                    </>
+                  )}
                 </button>
               </div>
-              <button
-                onClick={handleSendMessage}
-                disabled={sendingMessage || !messageText.trim()}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {sendingMessage ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Envoi...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send size={18} />
-                    <span>Envoyer sur MƆ̆TTO</span>
-                  </>
-                )}
-              </button>
             </div>
-          </div>
+          )}
 
           {/* Similar Listings Carousel */}
           {similarListings.length > 0 && (
