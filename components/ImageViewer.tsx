@@ -161,28 +161,29 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-black flex flex-col"
       onClick={onClose}
     >
-      {/* Contrôles supérieurs */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/50 to-transparent">
-        {title && (
-          <h3 className="text-white font-bold text-sm sm:text-base truncate max-w-[60%]">
-            {title}
-          </h3>
-        )}
-        <div className="flex items-center gap-2 ml-auto">
-          {/* Indicateur d'image */}
-          <span className="text-white/80 text-sm font-medium px-3 py-1 bg-black/30 rounded-full">
+      {/* Contrôles supérieurs - Hors de l'image */}
+      <div className="flex-shrink-0 flex items-center justify-between p-4 bg-black border-b border-white/10">
+        <div className="flex items-center gap-3">
+          {title && (
+            <h3 className="text-white font-bold text-sm sm:text-base truncate max-w-[200px] sm:max-w-none">
+              {title}
+            </h3>
+          )}
+          <span className="text-white/80 text-sm font-medium px-3 py-1 bg-white/10 rounded-full">
             {currentIndex + 1} / {images.length}
           </span>
+        </div>
+        <div className="flex items-center gap-2">
           <button
             onClick={(e) => {
               e.stopPropagation();
               handleReset();
             }}
             className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            title="Réinitialiser (R)"
+            title="Réinitialiser"
           >
             <RotateCw size={20} />
           </button>
@@ -199,7 +200,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
         </div>
       </div>
 
-      {/* Image principale */}
+      {/* Zone d'image principale - Aucun contrôle dessus */}
       <div
         ref={containerRef}
         className="flex-1 flex items-center justify-center overflow-hidden relative"
@@ -209,37 +210,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Boutons de navigation (seulement si plusieurs images) */}
-        {images.length > 1 && (
-          <>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePrev();
-              }}
-              className="absolute left-4 z-20 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
-              title="Image précédente (←)"
-            >
-              <ChevronLeft size={28} />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleNext();
-              }}
-              className="absolute right-4 z-20 p-3 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
-              title="Image suivante (→)"
-            >
-              <ChevronRight size={28} />
-            </button>
-          </>
-        )}
-
         <img
           ref={imageRef}
           src={images[currentIndex]}
           alt={`Image ${currentIndex + 1}`}
-          className="max-w-full max-h-[90vh] object-contain select-none"
+          className="max-w-full max-h-full object-contain select-none"
           style={{
             transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px) rotate(${rotation}deg)`,
             transition: isDragging ? 'none' : 'transform 0.2s ease-out',
@@ -254,8 +229,74 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
         />
       </div>
 
-      {/* Contrôles inférieurs */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-2 p-4 bg-gradient-to-t from-black/50 to-transparent">
+      {/* Miniatures - En bas, hors de l'image */}
+      {images.length > 1 && (
+        <div 
+          className="flex-shrink-0 border-t border-white/10 bg-black overflow-x-auto py-4"
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <style>{`
+            [data-thumbnails-scroll]::-webkit-scrollbar {
+              display: none;
+            }
+          `}</style>
+          <div 
+            data-thumbnails-scroll
+            className="flex gap-3 items-center justify-center px-4"
+            style={{ 
+              width: 'max-content', 
+              margin: '0 auto',
+            }}
+          >
+            {images.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentIndex(idx);
+                }}
+                className={`flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border-2 transition-all ${
+                  currentIndex === idx
+                    ? 'border-white scale-105'
+                    : 'border-white/30 hover:border-white/60 opacity-70 hover:opacity-100'
+                }`}
+                style={{ minWidth: '80px', flexShrink: 0 }}
+              >
+                <img
+                  src={img}
+                  alt={`Miniature ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Contrôles inférieurs - Hors de l'image */}
+      <div className="flex-shrink-0 flex items-center justify-center gap-3 p-4 bg-black border-t border-white/10" onClick={(e) => e.stopPropagation()}>
+        {/* Boutons de navigation (seulement si plusieurs images) */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePrev();
+              }}
+              className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+              title="Image précédente (←)"
+            >
+              <ChevronLeft size={24} />
+            </button>
+          </>
+        )}
+
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -268,7 +309,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
           <ZoomOut size={20} />
         </button>
 
-        <div className="px-4 py-1 bg-black/30 rounded-full">
+        <div className="px-4 py-2 bg-white/10 rounded-lg min-w-[70px] text-center">
           <span className="text-white text-sm font-medium">
             {Math.round(scale * 100)}%
           </span>
@@ -291,63 +332,26 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
             e.stopPropagation();
             handleRotate();
           }}
-          className="p-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors ml-2"
+          className="p-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           title="Tourner"
         >
           <RotateCw size={20} />
         </button>
-      </div>
 
-      {/* Miniatures en bas (si plusieurs images) */}
-      {images.length > 1 && (
-        <div 
-          className="absolute bottom-20 left-0 right-0 z-10 overflow-x-auto pb-2"
-          style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          <style>{`
-            [data-thumbnails-scroll]::-webkit-scrollbar {
-              display: none;
-            }
-          `}</style>
-          <div 
-            data-thumbnails-scroll
-            className="flex gap-2 items-center"
-            style={{ 
-              width: 'max-content', 
-              margin: '0 auto',
-              paddingLeft: 'max(1rem, calc((100vw - 64px) / 2))',
-              paddingRight: 'max(1rem, calc((100vw - 64px) / 2))',
+        {/* Boutons de navigation (seulement si plusieurs images) */}
+        {images.length > 1 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNext();
             }}
+            className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+            title="Image suivante (→)"
           >
-            {images.map((img, idx) => (
-              <button
-                key={idx}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentIndex(idx);
-                }}
-                className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
-                  currentIndex === idx
-                    ? 'border-white scale-110'
-                    : 'border-white/30 hover:border-white/60'
-                }`}
-                style={{ minWidth: '64px', flexShrink: 0 }}
-              >
-                <img
-                  src={img}
-                  alt={`Miniature ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                  draggable={false}
-                />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+            <ChevronRight size={24} />
+          </button>
+        )}
+      </div>
     </div>
   );
 };
