@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronLeft, Search, MoreVertical, Send, Loader2, ArrowRight, ArrowUp, Package } from 'lucide-react';
+import { ChevronLeft, Search, MoreVertical, Send, Loader2, ArrowRight, Package } from 'lucide-react';
 import { Chat, Message, User, Listing } from '../types';
 import { chatService } from '../services/chatService';
 import { userService } from '../services/userService';
@@ -33,7 +33,6 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
   const [isTyping, setIsTyping] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
-  const [showScrollToTop, setShowScrollToTop] = useState(false);
   
   // Tous les refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -719,37 +718,6 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
     );
   };
 
-  // Fonction pour scroller vers la carte d'article
-  const scrollToListingCard = useCallback(() => {
-    if (listingCardRef.current) {
-      listingCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
-  // Détecter le scroll pour afficher/masquer le bouton "remonter"
-  useEffect(() => {
-    if (!selectedChat) return;
-    
-    const listing = getListingForChat(selectedChat);
-    if (!listing) return;
-
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      if (listingCardRef.current) {
-        const cardTop = listingCardRef.current.getBoundingClientRect().top;
-        const containerTop = container.getBoundingClientRect().top;
-        // Afficher le bouton si la carte n'est pas visible (en haut)
-        setShowScrollToTop(cardTop < containerTop - 100);
-      }
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    handleScroll(); // Vérifier immédiatement
-    
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [selectedChat?.id]);
 
   // Grouper les messages par date pour afficher les séparateurs
   const groupMessagesByDate = (messages: Message[]) => {
@@ -896,16 +864,6 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Bouton pour remonter vers la carte d'article */}
-        {listing && showScrollToTop && (
-          <button
-            onClick={scrollToListingCard}
-            className="fixed bottom-24 right-4 z-20 bg-indigo-600 text-white p-4 rounded-full shadow-xl hover:bg-indigo-700 transition-all hover:scale-110 active:scale-95 flex items-center justify-center group"
-            title="Voir l'article concerné"
-          >
-            <ArrowUp size={20} className="group-hover:-translate-y-1 transition-transform" />
-          </button>
-        )}
 
         {/* Input fixe en bas */}
         <div className="bg-white border-t border-gray-100 p-4 safe-bottom sticky bottom-0 z-10">
