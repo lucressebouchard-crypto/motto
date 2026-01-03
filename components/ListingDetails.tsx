@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Share2, Heart, ShieldCheck, 
   Calendar, Gauge, Palette, Star, MessageCircle, 
   MapPin, Store, User as UserIcon, Wrench, ShieldAlert,
-  ArrowRight, Check, Send
+  ArrowRight, ArrowLeft, Check, Send
 } from 'lucide-react';
 import { Listing, User, Chat } from '../types';
 import ListingCard from './ListingCard';
@@ -189,8 +189,12 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
         {/* Left Side: Photo Slider */}
         <div className="relative h-[400px] lg:h-screen bg-gray-900 lg:sticky lg:top-0">
           <div className="absolute top-4 left-4 right-4 z-20 flex justify-between lg:top-8 lg:left-8 lg:right-8">
-            <button onClick={onBack} className="p-3 bg-white/90 backdrop-blur-md rounded-full shadow-lg text-gray-800 transition-transform active:scale-90 hover:bg-white">
-              <ChevronLeft size={24} />
+            <button 
+              onClick={onBack} 
+              className="p-3 bg-indigo-600 text-white rounded-full shadow-xl transition-all active:scale-90 hover:bg-indigo-700 hover:shadow-2xl border-2 border-white/20"
+              title="Retour"
+            >
+              <ArrowLeft size={22} strokeWidth={2.5} />
             </button>
             <div className="flex gap-3">
               <button onClick={handleShare} className="p-3 bg-white/90 backdrop-blur-md rounded-full shadow-lg transition-transform active:scale-90 hover:bg-white relative overflow-hidden">
@@ -204,8 +208,20 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
 
           {listing.images.length > 1 && (
             <>
-              <button onClick={() => navigate('prev')} className={`absolute left-6 top-1/2 -translate-y-1/2 z-20 p-3 bg-white/80 rounded-full shadow-lg transition-all hover:bg-white ${activeImage === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}><ChevronLeft size={28} /></button>
-              <button onClick={() => navigate('next')} className={`absolute right-6 top-1/2 -translate-y-1/2 z-20 p-3 bg-white/80 rounded-full shadow-lg transition-all hover:bg-white ${activeImage === listing.images.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}><ChevronRight size={28} /></button>
+              <button 
+                onClick={() => navigate('prev')} 
+                className={`absolute left-4 top-1/2 -translate-y-1/2 z-20 p-4 bg-black/40 backdrop-blur-md rounded-full shadow-xl transition-all hover:bg-black/60 border border-white/20 ${activeImage === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                title="Image précédente"
+              >
+                <ChevronLeft size={24} className="text-white" strokeWidth={2.5} />
+              </button>
+              <button 
+                onClick={() => navigate('next')} 
+                className={`absolute right-4 top-1/2 -translate-y-1/2 z-20 p-4 bg-black/40 backdrop-blur-md rounded-full shadow-xl transition-all hover:bg-black/60 border border-white/20 ${activeImage === listing.images.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                title="Image suivante"
+              >
+                <ChevronRight size={24} className="text-white" strokeWidth={2.5} />
+              </button>
             </>
           )}
 
