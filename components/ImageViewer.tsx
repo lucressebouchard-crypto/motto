@@ -17,6 +17,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
   const [rotation, setRotation] = useState(0);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const thumbnailsRef = useRef<HTMLDivElement>(null);
 
   // Réinitialiser le zoom et la position quand on change d'image
   useEffect(() => {
