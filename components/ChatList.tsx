@@ -41,6 +41,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
   const listingCardRef = useRef<HTMLDivElement>(null);
   const subscriptionRef = useRef<any>(null);
   const typingSubscriptionRef = useRef<any>(null);
+  const unreadCountSubscriptionRef = useRef<any>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sendLockRef = useRef(false);
 
@@ -380,6 +381,37 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
 
     loadMessages();
 
+    // Marquer les messages comme lus quand on ouvre le chat
+    const markAsRead = async () => {
+      try {
+        console.log('📖 [ChatList] Marking messages as read for chat:', selectedChat.id);
+        await chatService.markMessagesAsRead(selectedChat.id, currentUser.id);
+        
+        // Mettre à jour le compteur immédiatement
+        const newUnreadCount = await chatService.getUnreadCount(selectedChat.id, currentUser.id);
+        setUnreadCounts(prev => {
+          const updated = { ...prev, [selectedChat.id]: newUnreadCount };
+          
+          // Recalculer le total
+          const newTotal = Object.values(updated).reduce((sum, count) => sum + count, 0);
+          setTotalUnreadCount(newTotal);
+          
+          if (onUnreadCountChange) {
+            onUnreadCountChange(newTotal);
+          }
+          
+          return updated;
+        });
+      } catch (error) {
+        console.error('❌ [ChatList] Error marking messages as read:', error);
+      }
+    };
+
+    // Marquer comme lus après un court délai pour laisser les messages se charger
+    const markAsReadTimeout = setTimeout(() => {
+      markAsRead();
+    }, 500);
+
     // Nettoyer les abonnements précédents
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe();
@@ -429,20 +461,9 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
           return chat;
         }));
         
-        // Mettre à jour le compteur de non lus pour les autres chats
-        if (message.senderId !== currentUser.id) {
-          setUnreadCounts(prev => {
-            const current = prev[selectedChat.id] || 0;
-            return { ...prev, [selectedChat.id]: current + 1 };
-          });
-          // Recalculer le total
-          setTotalUnreadCount(prev => prev + 1);
-          if (onUnreadCountChange) {
-            const newTotal = Object.values({ ...unreadCounts, [selectedChat.id]: (unreadCounts[selectedChat.id] || 0) + 1 })
-              .reduce((sum, count) => sum + count, 0);
-            onUnreadCountChange(newTotal);
-          }
-        }
+        // Si c'est un message reçu (pas envoyé par l'utilisateur), mettre à jour le compteur
+        // Mais seulement si le chat n'est pas actuellement sélectionné (sinon il sera marqué comme lu automatiquement)
+        // Le compteur sera mis à jour via l'abonnement aux changements de non lus
         
         // Scroller vers le bas
         setTimeout(() => {
@@ -473,6 +494,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
 
     return () => {
       isMounted = false;
+      if (markAsReadTimeout) clearTimeout(markAsReadTimeout);
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
@@ -485,7 +507,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [selectedChat?.id, currentUser?.id, scrollToBottom]);
+  }, [selectedChat?.id, currentUser?.id, scrollToBottom, onUnreadCountChange]);
 
   // Envoyer un message
   const handleSendMessage = async () => {

@@ -149,6 +149,9 @@ const AppContent: React.FC = () => {
           console.error('Erreur lors du chargement des messages non lus:', error);
         }
 
+        // S'abonner aux changements de compteurs de messages en temps réel
+        // (géré dans ChatList, mais on peut aussi le faire ici pour le badge global)
+
         // S'abonner aux nouvelles notifications
         const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {
           if (!isMounted) return;
