@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronLeft, Search, MoreVertical, Send, Loader2, ArrowRight } from 'lucide-react';
+import { ChevronLeft, Search, MoreVertical, Send, Loader2, ArrowRight, ArrowUp, Package } from 'lucide-react';
 import { Chat, Message, User, Listing } from '../types';
 import { chatService } from '../services/chatService';
 import { userService } from '../services/userService';
@@ -31,10 +31,12 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const listingCardRef = useRef<HTMLDivElement>(null);
   const subscriptionRef = useRef<any>(null);
   const typingSubscriptionRef = useRef<any>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sendLockRef = useRef(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
 
   // Formater l'heure
   const formatTime = (timestamp: number) => {
@@ -392,8 +394,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
     return chat.listingId ? (chatListings[chat.id] || null) : null;
   };
 
-  // Rendu de la carte d'article dans un message
-  const renderListingCard = (listing: Listing) => {
+  // Rendu de la carte d'article compacte (pour les messages)
+  const renderListingCardInline = (listing: Listing) => {
     if (!onSelectListing) return null;
     
     return (
@@ -426,6 +428,95 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
       </div>
     );
   };
+
+  // Rendu de la carte d'article sticky (en haut de la conversation)
+  const renderListingCardSticky = (listing: Listing) => {
+    if (!onSelectListing) return null;
+    
+    return (
+      <div 
+        ref={listingCardRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectListing(listing);
+        }}
+        className="sticky top-[73px] z-10 mx-4 mt-4 mb-2 p-4 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl border-2 border-indigo-200 cursor-pointer hover:border-indigo-400 hover:shadow-lg transition-all group"
+      >
+        <div className="flex items-start gap-4">
+          {listing.images && listing.images.length > 0 && (
+            <div className="relative flex-shrink-0">
+              <img 
+                src={listing.images[0]} 
+                alt={listing.title}
+                className="w-20 h-20 object-cover rounded-xl border-2 border-white shadow-md"
+              />
+              <div className="absolute -top-1 -right-1 bg-indigo-600 text-white p-1 rounded-full">
+                <Package size={12} />
+              </div>
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider bg-white/80 px-2 py-0.5 rounded-full">
+                Article concerné
+              </span>
+            </div>
+            <h4 className="font-black text-base text-gray-900 mb-1 line-clamp-2 group-hover:text-indigo-600 transition-colors">
+              {listing.title}
+            </h4>
+            <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+              <span>{listing.year}</span>
+              {listing.mileage && listing.mileage > 0 && (
+                <>
+                  <span>•</span>
+                  <span>{listing.mileage.toLocaleString()} km</span>
+                </>
+              )}
+            </div>
+            <p className="text-lg font-black text-indigo-600">
+              {listing.price.toLocaleString()} FCFA
+            </p>
+          </div>
+          <div className="flex-shrink-0 flex flex-col items-center gap-2">
+            <ArrowRight size={20} className="text-indigo-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+            <span className="text-[10px] text-gray-500 font-medium">Voir</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Fonction pour scroller vers la carte d'article
+  const scrollToListingCard = useCallback(() => {
+    if (listingCardRef.current) {
+      listingCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  // Détecter le scroll pour afficher/masquer le bouton "remonter"
+  useEffect(() => {
+    if (!selectedChat) return;
+    
+    const listing = getListingForChat(selectedChat);
+    if (!listing) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (listingCardRef.current) {
+        const cardTop = listingCardRef.current.getBoundingClientRect().top;
+        const containerTop = container.getBoundingClientRect().top;
+        // Afficher le bouton si la carte n'est pas visible (en haut)
+        setShowScrollToTop(cardTop < containerTop - 100);
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    handleScroll(); // Vérifier immédiatement
+    
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [selectedChat?.id]);
 
   // Grouper les messages par date pour afficher les séparateurs
   const groupMessagesByDate = (messages: Message[]) => {
@@ -496,6 +587,9 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
           </button>
         </header>
 
+        {/* Carte d'article sticky (si présente) */}
+        {listing && renderListingCardSticky(listing)}
+
         {/* Messages */}
         <div 
           ref={messagesContainerRef}
@@ -531,7 +625,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
                         {message.text}
                         
                         {/* Carte d'article si présente */}
-                        {message.listingCard && renderListingCard(message.listingCard)}
+                        {message.listingCard && renderListingCardInline(message.listingCard)}
                       </div>
                       {showTime && (
                         <span className={`text-[10px] text-gray-400 mt-1 px-2 ${
@@ -562,6 +656,17 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
           
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Bouton pour remonter vers la carte d'article */}
+        {listing && showScrollToTop && (
+          <button
+            onClick={scrollToListingCard}
+            className="fixed bottom-24 right-4 z-20 bg-indigo-600 text-white p-4 rounded-full shadow-xl hover:bg-indigo-700 transition-all hover:scale-110 active:scale-95 flex items-center justify-center group"
+            title="Voir l'article concerné"
+          >
+            <ArrowUp size={20} className="group-hover:-translate-y-1 transition-transform" />
+          </button>
+        )}
 
         {/* Input fixe en bas */}
         <div className="bg-white border-t border-gray-100 p-4 safe-bottom sticky bottom-0 z-10">
@@ -675,9 +780,23 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
                       )}
                     </div>
                     {listing && (
-                      <p className="text-[10px] text-indigo-600 font-bold mb-1 truncate">
-                        📋 {listing.title}
-                      </p>
+                      <div className="flex items-center gap-2 mb-1 p-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                        {listing.images && listing.images.length > 0 && (
+                          <img 
+                            src={listing.images[0]} 
+                            alt={listing.title}
+                            className="w-10 h-10 object-cover rounded-lg"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-indigo-600 font-bold truncate">
+                            {listing.title}
+                          </p>
+                          <p className="text-[9px] text-gray-500 truncate">
+                            {listing.price.toLocaleString()} FCFA
+                          </p>
+                        </div>
+                      </div>
                     )}
                     {lastMessage && (
                       <p className={`text-xs truncate ${unreadCount > 0 ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
