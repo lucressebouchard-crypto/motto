@@ -32,6 +32,7 @@ const App: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
   // Stocker les références aux abonnements pour pouvoir les nettoyer
   const notificationSubscriptionRef = React.useRef<{ unsubscribe: () => void } | null>(null);
@@ -96,6 +97,16 @@ const App: React.FC = () => {
           console.error('Erreur lors du chargement des notifications:', error);
         }
 
+        // Charger le compteur de messages non lus
+        try {
+          const chatCount = await chatService.getTotalUnreadCount(user.id);
+          if (isMounted) {
+            setUnreadMessagesCount(chatCount);
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des messages non lus:', error);
+        }
+
         // S'abonner aux nouvelles notifications
         const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {
           if (!isMounted) return;
@@ -114,6 +125,7 @@ const App: React.FC = () => {
         // Si l'utilisateur se déconnecte, nettoyer les favoris
         setFavorites([]);
         setUnreadNotificationsCount(0);
+        setUnreadMessagesCount(0);
         localStorage.removeItem('motto_user');
       }
     });
@@ -309,8 +321,13 @@ const App: React.FC = () => {
                   </span>
                 )}
               </button>
-              <button onClick={() => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} className={`p-2 rounded-full transition-all hover:bg-gray-50 ${showChats ? 'text-indigo-600' : 'text-gray-500'}`}>
+              <button onClick={() => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} className={`relative p-2 rounded-full transition-all hover:bg-gray-50 ${showChats ? 'text-indigo-600' : 'text-gray-500'}`}>
                 <MessageCircle size={22} fill={showChats ? 'currentColor' : 'none'} />
+                {!showChats && unreadMessagesCount > 0 && (
+                  <span className="absolute top-1 right-1 bg-red-500 text-[10px] text-white rounded-full min-w-[16px] h-4 flex items-center justify-center border-2 border-white font-bold px-1">
+                    {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                  </span>
+                )}
               </button>
               <button onClick={handleProfileClick} className={`p-1 rounded-full transition-all hover:ring-2 hover:ring-indigo-100 ${activeTab === 'profile' && !showNotifications && !showChats ? 'text-indigo-600' : 'text-gray-500'}`}>
                 {currentUser ? (
@@ -337,7 +354,14 @@ const App: React.FC = () => {
           ) : showNotifications ? (
             <NotificationList onClose={() => setShowNotifications(false)} currentUser={currentUser} />
           ) : showChats ? (
-            <ChatList onClose={() => setShowChats(false)} currentUser={currentUser} />
+            <ChatList 
+              onClose={() => setShowChats(false)} 
+              currentUser={currentUser}
+              onSelectListing={(listing) => {
+                setSelectedListing(listing);
+                setShowChats(false);
+              }}
+            />
           ) : selectedListing ? (
             <ListingDetails 
               listing={selectedListing} 

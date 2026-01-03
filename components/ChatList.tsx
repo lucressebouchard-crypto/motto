@@ -1,27 +1,85 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, Search, MoreVertical, Send, Loader2 } from 'lucide-react';
-import { Chat, Message, User } from '../types';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { ChevronLeft, Search, MoreVertical, Send, Loader2, ArrowRight } from 'lucide-react';
+import { Chat, Message, User, Listing } from '../types';
 import { chatService } from '../services/chatService';
 import { userService } from '../services/userService';
-import { authService } from '../services/authService';
+import { listingService } from '../services/listingService';
 
 interface ChatListProps {
   onClose: () => void;
   currentUser: User | null;
+  onSelectListing?: (listing: Listing) => void;
 }
 
-const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
+const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListing }) => {
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [chatParticipants, setChatParticipants] = useState<Record<string, User>>({});
+  const [chatListings, setChatListings] = useState<Record<string, Listing>>({});
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({}); // chatId -> userId typing
+  const [isTyping, setIsTyping] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [totalUnreadCount, setTotalUnreadCount] = useState(0);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const subscriptionRef = useRef<any>(null);
+  const typingSubscriptionRef = useRef<any>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sendLockRef = useRef(false);
 
-  // Charger les chats
+  // Formater l'heure
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+
+    if (hours < 24) {
+      return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    } else if (days === 1) {
+      return 'Hier';
+    } else if (days < 7) {
+      return date.toLocaleDateString('fr-FR', { weekday: 'short' });
+    } else {
+      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    }
+  };
+
+  // Formater la date pour les séparateurs dans la conversation
+  const formatDateSeparator = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffTime = messageDate.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return "Aujourd'hui";
+    } else if (diffDays === -1) {
+      return "Hier";
+    } else if (diffDays > -7) {
+      return date.toLocaleDateString('fr-FR', { weekday: 'long' });
+    } else {
+      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  };
+
+  // Scroll vers le bas
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }, []);
+
+  // Charger les chats avec compteurs de non lus
   useEffect(() => {
     if (!currentUser) {
       setLoading(false);
@@ -33,9 +91,13 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
         const userChats = await chatService.getByParticipant(currentUser.id);
         setChats(userChats);
 
-        // Charger les informations des participants
+        // Charger les informations des participants et listings
         const participantsMap: Record<string, User> = {};
+        const listingsMap: Record<string, Listing> = {};
+        const unreadMap: Record<string, number> = {};
+
         for (const chat of userChats) {
+          // Participants
           for (const participantId of chat.participants) {
             if (participantId !== currentUser.id && !participantsMap[participantId]) {
               try {
@@ -48,8 +110,28 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
               }
             }
           }
+
+          // Listing si présent
+          if (chat.listingId) {
+            try {
+              const listing = await listingService.getById(chat.listingId);
+              if (listing) {
+                listingsMap[chat.id] = listing;
+              }
+            } catch (error) {
+              console.error('Error loading listing:', error);
+            }
+          }
+
+          // Compteur de non lus
+          const unread = await chatService.getUnreadCount(chat.id, currentUser.id);
+          unreadMap[chat.id] = unread;
         }
+
         setChatParticipants(participantsMap);
+        setChatListings(listingsMap);
+        setUnreadCounts(unreadMap);
+        setTotalUnreadCount(Object.values(unreadMap).reduce((sum, count) => sum + count, 0));
       } catch (error) {
         console.error('Erreur lors du chargement des chats:', error);
       } finally {
@@ -58,15 +140,52 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
     };
 
     loadChats();
+    
+    // Recharger périodiquement pour mettre à jour les compteurs
+    const interval = setInterval(loadChats, 30000); // Toutes les 30 secondes
+    
+    return () => clearInterval(interval);
   }, [currentUser]);
+
+  // Exposer le compteur total pour App.tsx
+  useEffect(() => {
+    // Cette fonction sera appelée par App.tsx via une prop callback si nécessaire
+  }, [totalUnreadCount]);
+
+  // Gérer la saisie pour l'indicateur de frappe
+  const handleTyping = useCallback(() => {
+    if (!selectedChat || !currentUser) return;
+    
+    setIsTyping(true);
+    
+    // Envoyer l'indicateur de frappe via presence
+    if (typingSubscriptionRef.current) {
+      typingSubscriptionRef.current.track({ userId: currentUser.id, typing: true });
+    }
+
+    // Arrêter l'indicateur après 3 secondes sans frappe
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      if (typingSubscriptionRef.current) {
+        typingSubscriptionRef.current.track({ userId: currentUser.id, typing: false });
+      }
+    }, 3000);
+  }, [selectedChat, currentUser]);
 
   // S'abonner aux nouveaux messages du chat sélectionné
   useEffect(() => {
     if (!selectedChat || !currentUser) {
-      // Nettoyer l'abonnement si pas de chat sélectionné ou d'utilisateur
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
+      }
+      if (typingSubscriptionRef.current) {
+        typingSubscriptionRef.current.unsubscribe();
+        typingSubscriptionRef.current = null;
       }
       return;
     }
@@ -88,23 +207,58 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
 
     loadMessages();
 
-    // Nettoyer l'abonnement précédent si existe
+    // Nettoyer les abonnements précédents
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe();
       subscriptionRef.current = null;
+    }
+    if (typingSubscriptionRef.current) {
+      typingSubscriptionRef.current.unsubscribe();
+      typingSubscriptionRef.current = null;
     }
 
     // S'abonner aux nouveaux messages
     subscriptionRef.current = chatService.subscribeToMessages(selectedChat.id, (message) => {
       if (!isMounted) return;
+      
+      // Vérifier que le message n'est pas déjà présent (éviter doublons)
       setSelectedChat(prev => {
         if (!prev) return prev;
-        // Éviter les doublons
         if (prev.messages.some(m => m.id === message.id)) return prev;
         return { ...prev, messages: [...prev.messages, message] };
       });
+      
+      // Mettre à jour la liste des chats
+      setChats(prev => prev.map(chat => {
+        if (chat.id === selectedChat.id) {
+          const lastMessage = chat.messages[chat.messages.length - 1];
+          if (!lastMessage || message.timestamp > lastMessage.timestamp) {
+            return { ...chat, lastMessage: message, lastMessageAt: message.timestamp };
+          }
+        }
+        return chat;
+      }));
+      
       scrollToBottom();
     });
+
+    // S'abonner aux indicateurs de frappe
+    typingSubscriptionRef.current = chatService.subscribeToTyping(
+      selectedChat.id,
+      currentUser.id,
+      (isTyping, userId) => {
+        if (!isMounted) return;
+        if (isTyping) {
+          setTypingUsers(prev => ({ ...prev, [selectedChat.id]: userId }));
+        } else {
+          setTypingUsers(prev => {
+            const newState = { ...prev };
+            delete newState[selectedChat.id];
+            return newState;
+          });
+        }
+      }
+    );
 
     return () => {
       isMounted = false;
@@ -112,37 +266,56 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
       }
+      if (typingSubscriptionRef.current) {
+        typingSubscriptionRef.current.unsubscribe();
+        typingSubscriptionRef.current = null;
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
     };
-  }, [selectedChat?.id, currentUser?.id]);
+  }, [selectedChat?.id, currentUser?.id, scrollToBottom]);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
-
+  // Envoyer un message
   const handleSendMessage = async () => {
-    if (!messageText.trim() || !selectedChat || !currentUser || sendingMessage) return;
+    if (!messageText.trim() || !selectedChat || !currentUser || sendingMessage || sendLockRef.current) return;
 
+    sendLockRef.current = true;
     setSendingMessage(true);
-    try {
-      const newMessage = await chatService.sendMessage(selectedChat.id, currentUser.id, messageText.trim());
-      setSelectedChat(prev => prev ? { ...prev, messages: [...prev.messages, newMessage] } : null);
-      setMessageText('');
-      scrollToBottom();
+    
+    const messageToSend = messageText.trim();
+    setMessageText(''); // Vider immédiatement pour éviter les doublons
+    
+    // Arrêter l'indicateur de frappe
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    setIsTyping(false);
+    if (typingSubscriptionRef.current) {
+      typingSubscriptionRef.current.track({ userId: currentUser.id, typing: false });
+    }
 
+    try {
+      // Ne pas ajouter le message localement immédiatement pour éviter les doublons
+      // Il sera ajouté via l'abonnement Realtime
+      const newMessage = await chatService.sendMessage(selectedChat.id, currentUser.id, messageToSend);
+      
       // Mettre à jour la liste des chats
-      const updatedChats = chats.map(chat => 
+      setChats(prev => prev.map(chat => 
         chat.id === selectedChat.id 
-          ? { ...chat, messages: [...chat.messages, newMessage] }
+          ? { ...chat, lastMessage: newMessage, lastMessageAt: newMessage.timestamp }
           : chat
-      );
-      setChats(updatedChats);
+      ));
+      
+      scrollToBottom();
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
-      alert('Erreur lors de l\'envoi du message');
+      // Remettre le texte en cas d'erreur
+      setMessageText(messageToSend);
     } finally {
       setSendingMessage(false);
+      sendLockRef.current = false;
     }
   };
 
@@ -152,74 +325,210 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
     return otherId ? chatParticipants[otherId] || null : null;
   };
 
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-
-    if (hours < 24) {
-      return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    } else if (hours < 48) {
-      return 'Hier';
-    } else {
-      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-    }
+  const getListingForChat = (chat: Chat): Listing | null => {
+    return chat.listingId ? (chatListings[chat.id] || null) : null;
   };
 
-  if (selectedChat) {
-    const otherParticipant = getOtherParticipant(selectedChat);
+  // Rendu de la carte d'article dans un message
+  const renderListingCard = (listing: Listing) => {
+    if (!onSelectListing) return null;
     
     return (
-      <div className="flex flex-col h-full bg-gray-50">
-        <header className="bg-white p-4 border-b flex items-center gap-3">
-          <button onClick={() => setSelectedChat(null)} className="text-gray-600"><ChevronLeft size={24} /></button>
+      <div 
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectListing(listing);
+        }}
+        className="mt-2 p-3 bg-white rounded-xl border border-gray-200 cursor-pointer hover:border-indigo-300 transition-colors"
+      >
+        <div className="flex gap-3">
+          {listing.images && listing.images.length > 0 && (
+            <img 
+              src={listing.images[0]} 
+              alt={listing.title}
+              className="w-16 h-16 object-cover rounded-lg"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <h4 className="font-bold text-sm text-gray-900 truncate">{listing.title}</h4>
+            <p className="text-xs text-gray-500 mt-1">
+              {listing.year} • {listing.mileage ? `${listing.mileage.toLocaleString()} km` : 'N/A'}
+            </p>
+            <p className="text-sm font-black text-indigo-600 mt-1">
+              {listing.price.toLocaleString()} FCFA
+            </p>
+          </div>
+          <ArrowRight size={16} className="text-gray-400 flex-shrink-0" />
+        </div>
+      </div>
+    );
+  };
+
+  // Grouper les messages par date pour afficher les séparateurs
+  const groupMessagesByDate = (messages: Message[]) => {
+    const groups: { date: string; messages: Message[] }[] = [];
+    let currentDate = '';
+    
+    messages.forEach((message) => {
+      const messageDate = formatDateSeparator(message.timestamp);
+      if (messageDate !== currentDate) {
+        currentDate = messageDate;
+        groups.push({ date: messageDate, messages: [] });
+      }
+      groups[groups.length - 1].messages.push(message);
+    });
+    
+    return groups;
+  };
+
+  // Vue de conversation
+  if (selectedChat) {
+    const otherParticipant = getOtherParticipant(selectedChat);
+    const listing = getListingForChat(selectedChat);
+    const messageGroups = groupMessagesByDate(selectedChat.messages || []);
+    const typingUserId = typingUsers[selectedChat.id];
+    const typingParticipant = typingUserId ? chatParticipants[typingUserId] : null;
+
+    return (
+      <div className="flex flex-col h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white p-4 border-b border-gray-100 flex items-center gap-3 sticky top-0 z-10">
+          <button 
+            onClick={() => {
+              setSelectedChat(null);
+              setIsTyping(false);
+            }} 
+            className="text-gray-600 hover:text-gray-900"
+          >
+            <ChevronLeft size={24} />
+          </button>
           {otherParticipant && (
             <>
-              <img src={otherParticipant.avatar} className="w-10 h-10 rounded-full" alt="" />
-              <div className="flex-1">
-                <h3 className="font-bold text-sm text-gray-900">{otherParticipant.name}</h3>
-                <span className="text-[10px] text-green-500 font-bold">EN LIGNE</span>
+              <div className="relative">
+                <img 
+                  src={otherParticipant.avatar} 
+                  className="w-10 h-10 rounded-full border-2 border-indigo-100" 
+                  alt="" 
+                />
+                {onlineUsers.has(otherParticipant.id) && (
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-sm text-gray-900 truncate">{otherParticipant.name}</h3>
+                <div className="flex items-center gap-1">
+                  {typingParticipant ? (
+                    <span className="text-[10px] text-indigo-600 font-medium">en train d'écrire...</span>
+                  ) : onlineUsers.has(otherParticipant.id) ? (
+                    <span className="text-[10px] text-green-500 font-bold">EN LIGNE</span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 font-medium">Hors ligne</span>
+                  )}
+                </div>
               </div>
             </>
           )}
-          <button className="text-gray-400"><MoreVertical size={20} /></button>
+          <button className="text-gray-400 hover:text-gray-600">
+            <MoreVertical size={20} />
+          </button>
         </header>
 
-        <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-          {selectedChat.messages.map((message) => {
-            const isOwnMessage = message.senderId === currentUser?.id;
-            return (
-              <div key={message.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-3 rounded-2xl max-w-[80%] text-sm shadow-md ${
-                  isOwnMessage 
-                    ? 'bg-indigo-600 text-white rounded-tr-none' 
-                    : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
-                }`}>
-                  {message.text}
+        {/* Messages */}
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-4"
+          style={{ paddingBottom: '1rem' }}
+        >
+          {messageGroups.map((group, groupIndex) => (
+            <React.Fragment key={groupIndex}>
+              {/* Séparateur de date */}
+              <div className="flex items-center justify-center my-4">
+                <div className="bg-gray-200 px-3 py-1 rounded-full">
+                  <span className="text-[10px] text-gray-600 font-bold uppercase">
+                    {group.date}
+                  </span>
                 </div>
               </div>
-            );
-          })}
+              
+              {/* Messages du groupe */}
+              {group.messages.map((message, messageIndex) => {
+                const isOwnMessage = message.senderId === currentUser?.id;
+                const showTime = messageIndex === group.messages.length - 1 || 
+                  (messageIndex < group.messages.length - 1 && 
+                   group.messages[messageIndex + 1].senderId !== message.senderId);
+                
+                return (
+                  <div key={message.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] ${isOwnMessage ? 'flex flex-col items-end' : 'flex flex-col items-start'}`}>
+                      <div className={`p-3 rounded-2xl text-sm shadow-sm ${
+                        isOwnMessage 
+                          ? 'bg-indigo-600 text-white rounded-tr-none' 
+                          : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
+                      }`}>
+                        {message.text}
+                        
+                        {/* Carte d'article si présente */}
+                        {message.listingCard && renderListingCard(message.listingCard)}
+                      </div>
+                      {showTime && (
+                        <span className={`text-[10px] text-gray-400 mt-1 px-2 ${
+                          isOwnMessage ? 'text-right' : 'text-left'
+                        }`}>
+                          {formatTime(message.timestamp)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+          
+          {/* Indicateur de frappe */}
+          {typingParticipant && (
+            <div className="flex justify-start">
+              <div className="bg-white p-3 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 bg-white border-t safe-bottom">
-          <div className="flex gap-2">
+        {/* Input fixe en bas */}
+        <div className="bg-white border-t border-gray-100 p-4 safe-bottom sticky bottom-0 z-10">
+          <div className="flex gap-2 items-end">
             <input 
               type="text" 
               placeholder="Écrivez un message..." 
               value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500"
+              onChange={(e) => {
+                setMessageText(e.target.value);
+                handleTyping();
+              }}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 resize-none"
             />
             <button 
               onClick={handleSendMessage}
-              disabled={sendingMessage || !messageText.trim()}
-              className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={sendingMessage || !messageText.trim() || sendLockRef.current}
+              className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-indigo-700 active:scale-95"
             >
-              {sendingMessage ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+              {sendingMessage ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <Send size={20} />
+              )}
             </button>
           </div>
         </div>
@@ -227,65 +536,98 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
     );
   }
 
+  // Vue liste des chats
   return (
-    <div className="bg-white min-h-full">
-      <header className="p-6 pb-2 space-y-4">
+    <div className="bg-white min-h-full flex flex-col">
+      <header className="p-6 pb-4 space-y-4 sticky top-0 bg-white z-10 border-b border-gray-100">
         <div className="flex items-center gap-4">
-          <button onClick={onClose} className="text-gray-600"><ChevronLeft size={24} /></button>
+          <button onClick={onClose} className="text-gray-600 hover:text-gray-900">
+            <ChevronLeft size={24} />
+          </button>
           <h2 className="text-xl font-black text-gray-900">Messages</h2>
+          {totalUnreadCount > 0 && (
+            <span className="bg-red-500 text-white text-xs font-black px-2 py-1 rounded-full">
+              {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+            </span>
+          )}
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <input 
             type="text" 
             placeholder="Rechercher une conversation..." 
-            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none"
+            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-indigo-500"
           />
         </div>
       </header>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 size={32} className="animate-spin text-indigo-600" />
-        </div>
-      ) : chats.length === 0 ? (
-        <div className="text-center py-20 px-6">
-          <p className="text-gray-400 text-sm font-bold">Aucune conversation</p>
-          <p className="text-gray-300 text-xs mt-2">Commencez une conversation depuis une annonce</p>
-        </div>
-      ) : (
-        <div className="divide-y divide-gray-50">
-          {chats.map(chat => {
-            const otherParticipant = getOtherParticipant(chat);
-            const lastMessage = chat.messages[chat.messages.length - 1];
-            
-            return (
-              <div 
-                key={chat.id} 
-                onClick={() => setSelectedChat(chat)}
-                className="p-6 flex gap-4 active:bg-gray-50 transition-colors cursor-pointer"
-              >
-                <img 
-                  src={otherParticipant?.avatar || 'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff'} 
-                  className="w-14 h-14 rounded-full border-2 border-indigo-50" 
-                  alt="" 
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <h3 className="font-bold text-gray-900 truncate">{otherParticipant?.name || 'Utilisateur'}</h3>
-                    {lastMessage && (
-                      <span className="text-[10px] text-gray-400 font-bold">{formatTime(lastMessage.timestamp)}</span>
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={32} className="animate-spin text-indigo-600" />
+          </div>
+        ) : chats.length === 0 ? (
+          <div className="text-center py-20 px-6">
+            <p className="text-gray-400 text-sm font-bold">Aucune conversation</p>
+            <p className="text-gray-300 text-xs mt-2">Commencez une conversation depuis une annonce</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {chats.map(chat => {
+              const otherParticipant = getOtherParticipant(chat);
+              const lastMessage = chat.lastMessage || (chat.messages && chat.messages[chat.messages.length - 1]);
+              const unreadCount = unreadCounts[chat.id] || 0;
+              const listing = getListingForChat(chat);
+              
+              return (
+                <div 
+                  key={chat.id} 
+                  onClick={() => setSelectedChat(chat)}
+                  className="p-6 flex gap-4 active:bg-gray-50 transition-colors cursor-pointer relative"
+                >
+                  <div className="relative flex-shrink-0">
+                    <img 
+                      src={otherParticipant?.avatar || 'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff'} 
+                      className="w-14 h-14 rounded-full border-2 border-indigo-50" 
+                      alt="" 
+                    />
+                    {onlineUsers.has(otherParticipant?.id || '') && (
+                      <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
+                    )}
+                    {unreadCount > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full min-w-[18px] h-5 flex items-center justify-center px-1 border-2 border-white">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </div>
                     )}
                   </div>
-                  {lastMessage && (
-                    <p className="text-xs text-gray-500 truncate">{lastMessage.text}</p>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-1">
+                      <h3 className="font-bold text-gray-900 truncate text-sm">
+                        {otherParticipant?.name || 'Utilisateur'}
+                      </h3>
+                      {lastMessage && (
+                        <span className="text-[10px] text-gray-400 font-bold flex-shrink-0 ml-2">
+                          {formatTime(lastMessage.timestamp)}
+                        </span>
+                      )}
+                    </div>
+                    {listing && (
+                      <p className="text-[10px] text-indigo-600 font-bold mb-1 truncate">
+                        📋 {listing.title}
+                      </p>
+                    )}
+                    {lastMessage && (
+                      <p className={`text-xs truncate ${unreadCount > 0 ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
+                        {lastMessage.text}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

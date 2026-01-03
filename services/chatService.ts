@@ -147,6 +147,68 @@ export const chatService = {
     return (data || []).map(mapMessageFromDB);
   },
 
+  async getUnreadCount(chatId: string, userId: string): Promise<number> {
+    // Pour simplifier, on considère tous les messages non lus par défaut
+    // Dans une version future, on pourrait ajouter une table message_reads
+    const { count, error } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('chat_id', chatId)
+      .neq('sender_id', userId);
+
+    if (error) {
+      console.error('Erreur lors du comptage des messages non lus:', error);
+      return 0;
+    }
+    return count || 0;
+  },
+
+  async getTotalUnreadCount(userId: string): Promise<number> {
+    try {
+      // Récupérer tous les chats de l'utilisateur
+      const chats = await this.getByParticipant(userId);
+      
+      let totalUnread = 0;
+      
+      // Pour chaque chat, compter les messages envoyés par les autres
+      for (const chat of chats) {
+        const unread = await this.getUnreadCount(chat.id, userId);
+        totalUnread += unread;
+      }
+      
+      return totalUnread;
+    } catch (error) {
+      console.error('Erreur lors du calcul du total de messages non lus:', error);
+      return 0;
+    }
+  },
+
+  async markMessagesAsRead(chatId: string, userId: string): Promise<void> {
+    // Pour l'instant, on ne fait rien car on n'a pas de table message_reads
+    // Cette fonction sera utile quand on implémentera le système de lecture
+  },
+
+  async findChatByListing(userId: string, listingId: string, sellerId: string): Promise<Chat | null> {
+    const { data, error } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('listing_id', listingId)
+      .contains('participant_ids', [userId])
+      .contains('participant_ids', [sellerId])
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erreur lors de la recherche du chat:', error);
+      return null;
+    }
+
+    if (!data) return null;
+
+    const chat = mapChatFromDB(data);
+    const messages = await this.getMessages(chat.id);
+    return { ...chat, messages };
+  },
+
   subscribeToMessages(chatId: string, callback: (message: Message) => void) {
     const channel = supabase
       .channel(`chat:${chatId}`)
@@ -175,6 +237,18 @@ export const chatService = {
       });
     
     return channel;
+  },
+
+  subscribeToTyping(chatId: string, userId: string, callback: (isTyping: boolean, typingUserId: string) => void) {
+    // Pour l'instant, on désactive l'indicateur de frappe car il nécessite une configuration présence
+    // Dans une version future, on pourrait créer une table typing_indicators
+    // ou utiliser le système de presence de Supabase avec la bonne configuration
+    
+    // Retourner un objet avec unsubscribe pour compatibilité
+    return {
+      unsubscribe: () => {},
+      track: (data: any) => {},
+    };
   },
 };
 

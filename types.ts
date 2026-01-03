@@ -72,6 +72,9 @@ export interface Message {
   senderId: string;
   text: string;
   timestamp: number;
+  read?: boolean;
+  readAt?: number;
+  listingCard?: Listing; // Carte de l'article si le message concerne une annonce
 }
 
 export interface Chat {
@@ -79,6 +82,9 @@ export interface Chat {
   participants: string[];
   listingId?: string;
   messages: Message[];
+  unreadCount?: number;
+  lastMessage?: Message;
+  lastMessageAt?: number;
 }
 
 export interface Notification {

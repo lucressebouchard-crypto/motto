@@ -1,12 +1,12 @@
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   ChevronLeft, ChevronRight, Share2, Heart, ShieldCheck, 
   Calendar, Gauge, Palette, Star, MessageCircle, 
   MapPin, Store, User as UserIcon, Wrench, ShieldAlert,
   ArrowRight, Check, Send
 } from 'lucide-react';
-import { Listing, User } from '../types';
+import { Listing, User, Chat } from '../types';
 import ListingCard from './ListingCard';
 import { chatService } from '../services/chatService';
 
@@ -34,6 +34,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
   const [showExpertSelection, setShowExpertSelection] = useState(false);
   const [messageText, setMessageText] = useState('Bonjour, je suis intéressé(e) par votre annonce.');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [existingChat, setExistingChat] = useState<Chat | null>(null);
+  const [checkingChat, setCheckingChat] = useState(false);
 
   const formatFCFA = (p: number) => p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " FCFA";
 
@@ -95,6 +97,25 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
     imported: 'Importé (Venu)' 
   };
 
+  // Vérifier si une conversation existe déjà
+  useEffect(() => {
+    if (!currentUser || currentUser.id === listing.sellerId) return;
+
+    const checkExistingChat = async () => {
+      setCheckingChat(true);
+      try {
+        const chat = await chatService.findChatByListing(currentUser.id, listing.id, listing.sellerId);
+        setExistingChat(chat);
+      } catch (error) {
+        console.error('Erreur lors de la vérification du chat:', error);
+      } finally {
+        setCheckingChat(false);
+      }
+    };
+
+    checkExistingChat();
+  }, [currentUser, listing.id, listing.sellerId]);
+
   const handleSendMessage = async () => {
     if (!currentUser) {
       // Rediriger vers l'authentification
@@ -108,12 +129,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
 
     setSendingMessage(true);
     try {
-      // Vérifier si un chat existe déjà
-      const existingChats = await chatService.getByParticipant(currentUser.id);
-      let chat = existingChats.find(c => 
-        c.participants.includes(listing.sellerId) && 
-        c.listingId === listing.id
-      );
+      let chat = existingChat;
 
       // Créer le chat s'il n'existe pas
       if (!chat) {
@@ -121,10 +137,16 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
           participantIds: [currentUser.id, listing.sellerId],
           listingId: listing.id,
         });
+        setExistingChat(chat);
       }
 
+      // Créer le message avec la carte d'article
+      // Note: On ne peut pas stocker directement la carte dans le message,
+      // mais on peut ajouter un texte spécial pour identifier qu'il s'agit d'un message initial avec carte
+      const messageContent = messageText.trim();
+      
       // Envoyer le message
-      await chatService.sendMessage(chat.id, currentUser.id, messageText.trim());
+      await chatService.sendMessage(chat.id, currentUser.id, messageContent);
 
       // Ouvrir le chat
       onMessage();
@@ -134,6 +156,10 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const handleGoToChat = () => {
+    onMessage();
   };
 
   return (
@@ -255,41 +281,78 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
                  <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></div>
                  Contacter le vendeur
               </h3>
-              <div className="bg-gray-50 rounded-3xl border border-gray-100 p-4 sm:p-5 space-y-4">
-                <div className="flex gap-3">
-                  <textarea
-                    value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    placeholder="Bonjour, je suis intéressé(e) par votre annonce."
-                    className="flex-1 min-h-[100px] px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                    rows={3}
-                  />
+              
+              {checkingChat ? (
+                <div className="bg-gray-50 rounded-3xl border border-gray-100 p-8 text-center">
+                  <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-gray-500 text-sm mt-4">Vérification...</p>
+                </div>
+              ) : existingChat ? (
+                <div className="bg-indigo-50 rounded-3xl border-2 border-indigo-200 p-5 sm:p-6 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
+                      <MessageCircle size={20} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-black text-gray-900 text-sm mb-1">Conversation déjà lancée</h4>
+                      <p className="text-xs text-gray-600 font-medium">
+                        Vous avez déjà une conversation active avec ce vendeur concernant cette annonce.
+                      </p>
+                    </div>
+                  </div>
                   <button
-                    onClick={() => window.open(`https://wa.me/2250700000000?text=${encodeURIComponent(messageText)}`, '_blank')}
-                    className="self-start p-3 bg-[#25D366] text-white rounded-2xl shadow-md shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all flex items-center justify-center"
-                    title="Contacter via WhatsApp"
+                    onClick={handleGoToChat}
+                    className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-indigo-200 active:scale-95 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
                   >
-                    <WhatsAppIcon size={24} />
+                    <MessageCircle size={18} />
+                    <span>Aller à la conversation</span>
+                    <ArrowRight size={18} />
+                  </button>
+                  <button
+                    onClick={() => window.open(`https://wa.me/2250700000000?text=${encodeURIComponent(`Bonjour, je suis intéressé(e) par votre annonce: ${listing.title}`)}`, '_blank')}
+                    className="w-full bg-[#25D366] text-white py-3 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-green-200 active:scale-95 hover:bg-[#20bd5a] transition-all flex items-center justify-center gap-2"
+                  >
+                    <WhatsAppIcon size={18} />
+                    <span>Contacter via WhatsApp</span>
                   </button>
                 </div>
-                <button
-                  onClick={handleSendMessage}
-                  disabled={sendingMessage || !messageText.trim()}
-                  className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {sendingMessage ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Envoi...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send size={18} />
-                      <span>Envoyer sur MƆ̆TTO</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              ) : (
+                <div className="bg-gray-50 rounded-3xl border border-gray-100 p-4 sm:p-5 space-y-4">
+                  <div className="flex gap-3">
+                    <textarea
+                      value={messageText}
+                      onChange={(e) => setMessageText(e.target.value)}
+                      placeholder="Bonjour, je suis intéressé(e) par votre annonce."
+                      className="flex-1 min-h-[100px] px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                      rows={3}
+                    />
+                    <button
+                      onClick={() => window.open(`https://wa.me/2250700000000?text=${encodeURIComponent(messageText)}`, '_blank')}
+                      className="self-start p-3 bg-[#25D366] text-white rounded-2xl shadow-md shadow-green-100 active:scale-95 hover:bg-[#20bd5a] transition-all flex items-center justify-center"
+                      title="Contacter via WhatsApp"
+                    >
+                      <WhatsAppIcon size={24} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={sendingMessage || !messageText.trim()}
+                    className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-indigo-100 active:scale-95 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {sendingMessage ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Envoi...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        <span>Envoyer sur MƆ̆TTO</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
