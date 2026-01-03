@@ -1043,12 +1043,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
                         className="w-14 h-14 rounded-full border-2 border-indigo-50" 
                         alt={otherParticipant.name}
                       />
-                    ) : participantsLoaded ? (
-                      <div className="w-14 h-14 rounded-full border-2 border-indigo-50 bg-gray-200 animate-pulse flex items-center justify-center">
-                        <Loader2 size={16} className="animate-spin text-gray-400" />
-                      </div>
                     ) : (
-                      <div className="w-14 h-14 rounded-full border-2 border-indigo-50 bg-gray-200" />
+                      <div className="w-14 h-14 rounded-full border-2 border-indigo-50 bg-gray-100" />
                     )}
                     {onlineUsers.has(otherParticipant?.id || '') && (
                       <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
@@ -1062,7 +1058,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-center mb-1">
                       <h3 className="font-bold text-gray-900 truncate text-sm">
-                        {otherParticipant?.name || (participantsLoaded ? 'Chargement...' : '')}
+                        {otherParticipant?.name || 'Utilisateur'}
                       </h3>
                       {lastMessage && (
                         <span className="text-[10px] text-gray-400 font-bold flex-shrink-0 ml-2">
