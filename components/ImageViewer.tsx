@@ -232,25 +232,37 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
       {/* Miniatures - En bas, hors de l'image */}
       {images.length > 1 && (
         <div 
-          className="flex-shrink-0 border-t border-white/10 bg-black overflow-x-auto py-4"
+          className="flex-shrink-0 border-t border-white/10 bg-black overflow-x-auto py-3"
           style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255,255,255,0.3) transparent',
+            msOverflowStyle: 'auto',
             WebkitOverflowScrolling: 'touch',
+            scrollSnapType: 'x mandatory',
           }}
           onClick={(e) => e.stopPropagation()}
         >
           <style>{`
             [data-thumbnails-scroll]::-webkit-scrollbar {
-              display: none;
+              height: 4px;
+            }
+            [data-thumbnails-scroll]::-webkit-scrollbar-track {
+              background: rgba(255,255,255,0.1);
+            }
+            [data-thumbnails-scroll]::-webkit-scrollbar-thumb {
+              background: rgba(255,255,255,0.3);
+              border-radius: 2px;
+            }
+            [data-thumbnails-scroll]::-webkit-scrollbar-thumb:hover {
+              background: rgba(255,255,255,0.5);
             }
           `}</style>
           <div 
+            ref={thumbnailsRef}
             data-thumbnails-scroll
-            className="flex gap-3 items-center justify-center px-4"
+            className="flex gap-2 items-center px-4"
             style={{ 
-              width: 'max-content', 
-              margin: '0 auto',
+              width: 'max-content',
             }}
           >
             {images.map((img, idx) => (
@@ -260,12 +272,16 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
                   e.stopPropagation();
                   setCurrentIndex(idx);
                 }}
-                className={`flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border-2 transition-all ${
+                className={`flex-shrink-0 w-14 h-14 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 transition-all ${
                   currentIndex === idx
                     ? 'border-white scale-105'
                     : 'border-white/30 hover:border-white/60 opacity-70 hover:opacity-100'
                 }`}
-                style={{ minWidth: '80px', flexShrink: 0 }}
+                style={{ 
+                  minWidth: '56px',
+                  scrollSnapAlign: 'center',
+                  flexShrink: 0 
+                }}
               >
                 <img
                   src={img}
