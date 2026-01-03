@@ -1,21 +1,24 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ChevronLeft, Search, MoreVertical, Send, Loader2, ArrowRight } from 'lucide-react';
 import { Chat, Message, User, Listing } from '../types';
 import { chatService } from '../services/chatService';
 import { userService } from '../services/userService';
 import { listingService } from '../services/listingService';
+import { useAppCache } from '../contexts/AppCache';
 
 interface ChatListProps {
   onClose: () => void;
   currentUser: User | null;
   onSelectListing?: (listing: Listing) => void;
+  onUnreadCountChange?: (count: number) => void;
 }
 
-const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListing }) => {
+const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListing, onUnreadCountChange }) => {
+  const { getChats, setChats: setCacheChats, getUser, setUser } = useAppCache();
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [chats, setChats] = useState<Chat[]>(() => getChats()); // Initialiser avec le cache
+  const [loading, setLoading] = useState(false); // Ne plus afficher de chargement par défaut
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [chatParticipants, setChatParticipants] = useState<Record<string, User>>({});
@@ -79,78 +82,138 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
     }, 100);
   }, []);
 
-  // Charger les chats avec compteurs de non lus
+  // Refs pour maintenir l'état entre les rendus
+  const hasLoadedRef = useRef(false);
+  const lastLoadTimeRef = useRef<number>(0);
+  const loadingRef = useRef(false);
+
+  // Charger les chats avec compteurs de non lus (seulement si nécessaire)
   useEffect(() => {
     if (!currentUser) {
       setLoading(false);
       return;
     }
 
+    const now = Date.now();
+    const timeSinceLastLoad = now - lastLoadTimeRef.current;
+    const CACHE_DURATION = 10000; // 10 secondes de cache
+
+    // Si les chats sont déjà chargés et récents, ne pas recharger
+    if (hasLoadedRef.current && timeSinceLastLoad < CACHE_DURATION && chats.length > 0) {
+      setLoading(false);
+      return;
+    }
+
+    // Éviter les chargements simultanés
+    if (loadingRef.current) {
+      return;
+    }
+
+    loadingRef.current = true;
+    setLoading(true);
+
     const loadChats = async () => {
       try {
         const userChats = await chatService.getByParticipant(currentUser.id);
+        
+        // Mettre à jour le cache
+        setCacheChats(userChats);
         setChats(userChats);
+        lastLoadTimeRef.current = Date.now();
+        hasLoadedRef.current = true;
 
         // Charger les informations des participants et listings
         const participantsMap: Record<string, User> = {};
         const listingsMap: Record<string, Listing> = {};
         const unreadMap: Record<string, number> = {};
 
+        // Charger en parallèle pour optimiser
+        const promises: Promise<void>[] = [];
+
         for (const chat of userChats) {
           // Participants
           for (const participantId of chat.participants) {
             if (participantId !== currentUser.id && !participantsMap[participantId]) {
-              try {
-                const user = await userService.getById(participantId);
-                if (user) {
-                  participantsMap[participantId] = user;
-                }
-              } catch (error) {
-                console.error('Error loading participant:', error);
+              // Vérifier le cache d'abord
+              const cachedUser = getUser(participantId);
+              if (cachedUser) {
+                participantsMap[participantId] = cachedUser;
+              } else {
+                promises.push(
+                  userService.getById(participantId).then(user => {
+                    if (user) {
+                      participantsMap[participantId] = user;
+                      setUser(participantId, user);
+                    }
+                  }).catch(error => {
+                    console.error('Error loading participant:', error);
+                  })
+                );
               }
             }
           }
 
           // Listing si présent
-          if (chat.listingId) {
-            try {
-              const listing = await listingService.getById(chat.listingId);
-              if (listing) {
-                listingsMap[chat.id] = listing;
-              }
-            } catch (error) {
-              console.error('Error loading listing:', error);
-            }
+          if (chat.listingId && !listingsMap[chat.id]) {
+            promises.push(
+              listingService.getById(chat.listingId).then(listing => {
+                if (listing) {
+                  listingsMap[chat.id] = listing;
+                }
+              }).catch(error => {
+                console.error('Error loading listing:', error);
+              })
+            );
           }
 
           // Compteur de non lus
-          const unread = await chatService.getUnreadCount(chat.id, currentUser.id);
-          unreadMap[chat.id] = unread;
+          promises.push(
+            chatService.getUnreadCount(chat.id, currentUser.id).then(unread => {
+              unreadMap[chat.id] = unread;
+            })
+          );
         }
 
-        setChatParticipants(participantsMap);
-        setChatListings(listingsMap);
+        // Attendre que tous les chargements soient terminés
+        await Promise.all(promises);
+
+        setChatParticipants(prev => ({ ...prev, ...participantsMap }));
+        setChatListings(prev => ({ ...prev, ...listingsMap }));
         setUnreadCounts(unreadMap);
-        setTotalUnreadCount(Object.values(unreadMap).reduce((sum, count) => sum + count, 0));
+        
+        const totalUnread = Object.values(unreadMap).reduce((sum, count) => sum + count, 0);
+        setTotalUnreadCount(totalUnread);
+        
+        // Notifier le parent du changement
+        if (onUnreadCountChange) {
+          onUnreadCountChange(totalUnread);
+        }
       } catch (error) {
         console.error('Erreur lors du chargement des chats:', error);
       } finally {
         setLoading(false);
+        loadingRef.current = false;
       }
     };
 
     loadChats();
     
-    // Recharger périodiquement pour mettre à jour les compteurs
-    const interval = setInterval(loadChats, 30000); // Toutes les 30 secondes
+    // Recharger périodiquement pour mettre à jour les compteurs (seulement si nécessaire)
+    const interval = setInterval(() => {
+      if (!loadingRef.current) {
+        loadChats();
+      }
+    }, 30000); // Toutes les 30 secondes
     
     return () => clearInterval(interval);
-  }, [currentUser]);
+  }, [currentUser?.id]); // Seulement recharger si l'utilisateur change
 
   // Exposer le compteur total pour App.tsx
   useEffect(() => {
-    // Cette fonction sera appelée par App.tsx via une prop callback si nécessaire
-  }, [totalUnreadCount]);
+    if (onUnreadCountChange) {
+      onUnreadCountChange(totalUnreadCount);
+    }
+  }, [totalUnreadCount, onUnreadCountChange]);
 
   // Gérer la saisie pour l'indicateur de frappe
   const handleTyping = useCallback(() => {
@@ -420,12 +483,12 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
                   {typingParticipant ? (
                     <span className="text-[10px] text-indigo-600 font-medium">en train d'écrire...</span>
                   ) : onlineUsers.has(otherParticipant.id) ? (
-                    <span className="text-[10px] text-green-500 font-bold">EN LIGNE</span>
+            <span className="text-[10px] text-green-500 font-bold">EN LIGNE</span>
                   ) : (
                     <span className="text-[10px] text-gray-400 font-medium">Hors ligne</span>
                   )}
                 </div>
-              </div>
+          </div>
             </>
           )}
           <button className="text-gray-400 hover:text-gray-600">
@@ -477,8 +540,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
                           {formatTime(message.timestamp)}
                         </span>
                       )}
-                    </div>
-                  </div>
+            </div>
+          </div>
                 );
               })}
             </React.Fragment>
@@ -486,7 +549,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
           
           {/* Indicateur de frappe */}
           {typingParticipant && (
-            <div className="flex justify-start">
+          <div className="flex justify-start">
               <div className="bg-white p-3 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm">
                 <div className="flex gap-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -527,7 +590,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
               {sendingMessage ? (
                 <Loader2 size={20} className="animate-spin" />
               ) : (
-                <Send size={20} />
+              <Send size={20} />
               )}
             </button>
           </div>
@@ -562,7 +625,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {loading && chats.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={32} className="animate-spin text-indigo-600" />
           </div>
@@ -572,7 +635,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
             <p className="text-gray-300 text-xs mt-2">Commencez une conversation depuis une annonce</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+      <div className="divide-y divide-gray-50">
             {chats.map(chat => {
               const otherParticipant = getOtherParticipant(chat);
               const lastMessage = chat.lastMessage || (chat.messages && chat.messages[chat.messages.length - 1]);
@@ -580,9 +643,9 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
               const listing = getListingForChat(chat);
               
               return (
-                <div 
-                  key={chat.id} 
-                  onClick={() => setSelectedChat(chat)}
+          <div 
+            key={chat.id} 
+            onClick={() => setSelectedChat(chat)}
                   className="p-6 flex gap-4 active:bg-gray-50 transition-colors cursor-pointer relative"
                 >
                   <div className="relative flex-shrink-0">
@@ -600,8 +663,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
                       </div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center mb-1">
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-center mb-1">
                       <h3 className="font-bold text-gray-900 truncate text-sm">
                         {otherParticipant?.name || 'Utilisateur'}
                       </h3>
@@ -621,8 +684,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
                         {lastMessage.text}
                       </p>
                     )}
-                  </div>
-                </div>
+              </div>
+            </div>
               );
             })}
           </div>

@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { 
   ChevronLeft, ChevronRight, Share2, Heart, ShieldCheck, 
   Calendar, Gauge, Palette, Star, MessageCircle, 
@@ -97,15 +97,18 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
     imported: 'Importé (Venu)' 
   };
 
-  // Vérifier si une conversation existe déjà
+  const hasCheckedChatRef = useRef(false);
+  
+  // Vérifier si une conversation existe déjà (seulement une fois)
   useEffect(() => {
-    if (!currentUser || currentUser.id === listing.sellerId) return;
+    if (!currentUser || currentUser.id === listing.sellerId || hasCheckedChatRef.current) return;
 
     const checkExistingChat = async () => {
       setCheckingChat(true);
       try {
         const chat = await chatService.findChatByListing(currentUser.id, listing.id, listing.sellerId);
         setExistingChat(chat);
+        hasCheckedChatRef.current = true;
       } catch (error) {
         console.error('Erreur lors de la vérification du chat:', error);
       } finally {
@@ -114,7 +117,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
     };
 
     checkExistingChat();
-  }, [currentUser, listing.id, listing.sellerId]);
+  }, [currentUser?.id, listing.id, listing.sellerId]);
 
   const handleSendMessage = async () => {
     if (!currentUser) {

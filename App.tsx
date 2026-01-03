@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Home, Car, Bike, Package, User as UserIcon, Bell, MessageCircle, Plus, Wrench } from 'lucide-react';
 import { Listing, Category, User } from './types';
 import { MOCK_MECHANICS } from './mockData';
@@ -8,6 +8,7 @@ import { listingService } from './services/listingService';
 import { favoriteService } from './services/favoriteService';
 import { chatService } from './services/chatService';
 import { notificationService } from './services/notificationService';
+import { AppCacheProvider, useAppCache } from './contexts/AppCache';
 import Feed from './components/Feed';
 import MechanicFeed from './components/MechanicFeed';
 import CreateListingModal from './components/CreateListingModal';
@@ -19,14 +20,15 @@ import NotificationList from './components/NotificationList';
 import AuthPage from './components/AuthPage';
 import Logo from './components/Logo';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { listings: cachedListings, setListings: setCachedListings, clearCache } = useAppCache();
   const [activeTab, setActiveTab] = useState<'home' | 'cars' | 'motos' | 'mechanics' | 'accessories' | 'profile' | 'auth'>('home');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loadingListings, setLoadingListings] = useState(true);
+  const [listings, setListings] = useState<Listing[]>(cachedListings); // Utiliser le cache
+  const [loadingListings, setLoadingListings] = useState(cachedListings.length === 0); // Ne charger que si cache vide
   const [mechanics] = useState<User[]>(MOCK_MECHANICS);
   const [showChats, setShowChats] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -122,10 +124,11 @@ const App: React.FC = () => {
         
         notificationSubscriptionRef.current = notifSubscription;
       } else {
-        // Si l'utilisateur se déconnecte, nettoyer les favoris
+        // Si l'utilisateur se déconnecte, nettoyer les favoris et le cache
         setFavorites([]);
         setUnreadNotificationsCount(0);
         setUnreadMessagesCount(0);
+        clearCache(); // Nettoyer le cache à la déconnexion
         localStorage.removeItem('motto_user');
       }
     });
@@ -195,11 +198,50 @@ const App: React.FC = () => {
     }
   };
 
+  // Refs pour éviter les rechargements inutiles
+  const listingsLoadedRef = useRef(false);
+  const lastLoadTimeRef = useRef<number>(0);
+  const loadingRef = useRef(false);
+
   // Charger et recharger les listings quand l'onglet ou la recherche change
   useEffect(() => {
     const loadListings = async () => {
+      // Éviter les chargements simultanés
+      if (loadingRef.current) return;
+
+      const now = Date.now();
+      const timeSinceLastLoad = now - lastLoadTimeRef.current;
+      const CACHE_DURATION = 15000; // 15 secondes de cache
+
+      // Si les listings sont déjà chargés et récents, ne filtrer que localement
+      if (listingsLoadedRef.current && timeSinceLastLoad < CACHE_DURATION && cachedListings.length > 0) {
+        let category: Category | undefined;
+        if (activeTab === 'cars') category = Category.CAR;
+        else if (activeTab === 'motos') category = Category.MOTO;
+        else if (activeTab === 'accessories') category = Category.ACCESSORY;
+        
+        // Filtrer localement si possible
+        let filtered = cachedListings;
+        if (category) {
+          filtered = cachedListings.filter(l => l.category === category);
+        }
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          filtered = filtered.filter(l => 
+            l.title.toLowerCase().includes(query) || 
+            l.location.toLowerCase().includes(query) ||
+            l.description.toLowerCase().includes(query)
+          );
+        }
+        setListings(filtered);
+        setLoadingListings(false);
+        return;
+      }
+
+      loadingRef.current = true;
+      setLoadingListings(true);
+
       try {
-        setLoadingListings(true);
         let category: Category | undefined;
         
         if (activeTab === 'cars') category = Category.CAR;
@@ -210,17 +252,23 @@ const App: React.FC = () => {
           category,
           searchQuery: searchQuery || undefined,
         });
+        
+        // Mettre à jour le cache
+        setCachedListings(loadedListings);
         setListings(loadedListings);
+        listingsLoadedRef.current = true;
+        lastLoadTimeRef.current = Date.now();
       } catch (error) {
         console.error('Erreur lors du chargement des annonces:', error);
         setListings([]);
       } finally {
         setLoadingListings(false);
+        loadingRef.current = false;
       }
     };
 
     loadListings();
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, cachedListings, setCachedListings]);
 
   const filteredListings = useMemo(() => {
     // Si on charge depuis Supabase, on a déjà les filtres appliqués
@@ -361,6 +409,7 @@ const App: React.FC = () => {
                 setSelectedListing(listing);
                 setShowChats(false);
               }}
+              onUnreadCountChange={(count) => setUnreadMessagesCount(count)}
             />
           ) : selectedListing ? (
             <ListingDetails 
@@ -426,7 +475,10 @@ const App: React.FC = () => {
                     category,
                     searchQuery: searchQuery || undefined,
                   });
+                  // Mettre à jour le cache aussi
+                  setCachedListings(loadedListings);
                   setListings(loadedListings);
+                  lastLoadTimeRef.current = Date.now();
                 } catch (error) {
                   console.error('Erreur lors du rechargement des listings:', error);
                 }
@@ -490,5 +542,13 @@ const NavButton: React.FC<{ active: boolean, onClick: () => void, icon: React.Re
     <span className={`text-[10px] uppercase tracking-wider ${active ? 'font-black' : 'font-bold'}`}>{label}</span>
   </button>
 );
+
+const App: React.FC = () => {
+  return (
+    <AppCacheProvider>
+      <AppContent />
+    </AppCacheProvider>
+  );
+};
 
 export default App;
