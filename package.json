@@ -27,7 +27,8 @@
     "supabase:auto-rls": "node scripts/auto-setup-storage-rls.js",
     "supabase:full-auto": "node scripts/full-auto-rls.js",
     "supabase:ultimate-auto": "node scripts/ultimate-auto-rls.js",
-    "test:message-reads": "node scripts/test-message-reads.js"
+    "test:message-reads": "node scripts/test-message-reads.js",
+    "fix:message-reads": "node scripts/fix-message-reads.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
