@@ -32,6 +32,16 @@ const steps = [
     description: 'Activation du realtime pour messages, chats et notifications',
     file: 'supabase/setup-realtime.sql',
   },
+  {
+    name: 'Message Reads System',
+    description: 'Configuration du système de badges de messages non lus',
+    file: 'supabase/setup-message-reads.sql',
+  },
+  {
+    name: 'Unread Count Function',
+    description: 'Fonction SQL pour compter les messages non lus',
+    file: 'supabase/get-unread-count-function.sql',
+  },
 ];
 
 let successCount = 0;
