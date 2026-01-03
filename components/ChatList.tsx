@@ -653,11 +653,27 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
 
   // Filtrer les chats selon la recherche et n'afficher que ceux avec des messages
   const filteredChats = useMemo(() => {
-    // D'abord, filtrer pour ne garder que les chats avec au moins un message
+    // D'abord, filtrer pour ne garder que les chats avec au moins un message valide
     const chatsWithMessages = chats.filter(chat => {
-      const hasMessages = chat.messages && chat.messages.length > 0;
-      const hasLastMessage = chat.lastMessage !== null && chat.lastMessage !== undefined;
-      return hasMessages || hasLastMessage;
+      // Vérifier qu'il y a un participant autre que l'utilisateur actuel
+      const otherParticipant = getOtherParticipant(chat);
+      if (!otherParticipant) {
+        return false; // Pas de participant valide
+      }
+
+      // Vérifier qu'il y a au moins un message avec du texte
+      const lastMessage = chat.lastMessage || (chat.messages && chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null);
+      
+      if (!lastMessage) {
+        return false; // Pas de message
+      }
+
+      // Vérifier que le message a du contenu textuel valide
+      if (!lastMessage.text || lastMessage.text.trim().length === 0) {
+        return false; // Message vide
+      }
+
+      return true;
     });
 
     // Ensuite, appliquer le filtre de recherche si nécessaire
