@@ -439,6 +439,16 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
           </div>
         </div>
       )}
+
+      {/* Image Viewer Modal */}
+      {imageViewerOpen && (
+        <ImageViewer
+          images={listing.images}
+          initialIndex={selectedImageIndex}
+          onClose={() => setImageViewerOpen(false)}
+          title={listing.title}
+        />
+      )}
     </div>
   );
 };
