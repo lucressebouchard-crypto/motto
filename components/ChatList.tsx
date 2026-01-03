@@ -10,13 +10,33 @@ import { useAppCache } from '../contexts/AppCache';
 interface ChatListProps {
   onClose: () => void;
   currentUser: User | null;
+  selectedChatId?: string | null;
+  onChatSelected?: (chatId: string | null) => void;
   onSelectListing?: (listing: Listing) => void;
   onUnreadCountChange?: (count: number) => void;
 }
 
-const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListing, onUnreadCountChange }) => {
+const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatId, onChatSelected, onSelectListing, onUnreadCountChange }) => {
   const { getChats, setChats: setCacheChats, getUser, setUser } = useAppCache();
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  
+  // Notifier le parent quand le chat sélectionné change
+  const handleSelectChat = useCallback((chat: Chat | null) => {
+    setSelectedChat(chat);
+    if (onChatSelected) {
+      onChatSelected(chat?.id || null);
+    }
+  }, [onChatSelected]);
+  
+  // Restaurer le chat sélectionné si on revient depuis les détails d'article
+  useEffect(() => {
+    if (selectedChatId && chats.length > 0) {
+      const chatToRestore = chats.find(c => c.id === selectedChatId);
+      if (chatToRestore && (!selectedChat || selectedChat.id !== selectedChatId)) {
+        handleSelectChat(chatToRestore);
+      }
+    }
+  }, [selectedChatId, chats, selectedChat, handleSelectChat]);
   const [chats, setChats] = useState<Chat[]>(() => getChats()); // Initialiser avec le cache
   const [loading, setLoading] = useState(false); // Ne plus afficher de chargement par défaut
   const [messageText, setMessageText] = useState('');
@@ -549,7 +569,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
         <header className="bg-white p-4 border-b border-gray-100 flex items-center gap-3 sticky top-0 z-10">
           <button 
             onClick={() => {
-              setSelectedChat(null);
+              handleSelectChat(null);
               setIsTyping(false);
             }} 
             className="text-gray-600 hover:text-gray-900"
@@ -748,9 +768,9 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, onSelectListi
               const listing = getListingForChat(chat);
               
               return (
-          <div 
-            key={chat.id} 
-            onClick={() => setSelectedChat(chat)}
+                <div 
+                  key={chat.id} 
+                  onClick={() => handleSelectChat(chat)}
                   className="p-6 flex gap-4 active:bg-gray-50 transition-colors cursor-pointer relative"
                 >
                   <div className="relative flex-shrink-0">

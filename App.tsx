@@ -35,6 +35,8 @@ const AppContent: React.FC = () => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [returnToChat, setReturnToChat] = useState(false); // Pour savoir si on doit retourner au chat
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null); // ID du chat sélectionné pour y revenir
 
   // Stocker les références aux abonnements pour pouvoir les nettoyer
   const notificationSubscriptionRef = React.useRef<{ unsubscribe: () => void } | null>(null);
@@ -289,6 +291,8 @@ const AppContent: React.FC = () => {
     setShowChats(false);
     setShowNotifications(false);
     setSelectedListing(null);
+    setReturnToChat(false);
+    setSelectedChatId(null);
   };
 
   // Fonction centralisée pour le logout
@@ -403,9 +407,15 @@ const AppContent: React.FC = () => {
             <NotificationList onClose={() => setShowNotifications(false)} currentUser={currentUser} />
           ) : showChats ? (
             <ChatList 
-              onClose={() => setShowChats(false)} 
+              onClose={() => {
+                setShowChats(false);
+                setSelectedChatId(null); // Réinitialiser le chat sélectionné
+              }}
               currentUser={currentUser}
+              selectedChatId={selectedChatId}
+              onChatSelected={(chatId) => setSelectedChatId(chatId)}
               onSelectListing={(listing) => {
+                setReturnToChat(true); // Marquer qu'on vient du chat
                 setSelectedListing(listing);
                 setShowChats(false);
               }}
@@ -414,7 +424,17 @@ const AppContent: React.FC = () => {
           ) : selectedListing ? (
             <ListingDetails 
               listing={selectedListing} 
-              onBack={() => setSelectedListing(null)} 
+              onBack={() => {
+                if (returnToChat) {
+                  setReturnToChat(false);
+                  setSelectedListing(null);
+                  setShowChats(true);
+                  // Le chat sélectionné sera restauré via selectedChatId dans ChatList
+                } else {
+                  setSelectedListing(null);
+                  setSelectedChatId(null); // Nettoyer aussi le chat sélectionné
+                }
+              }}
               onMessage={async () => {
                 if (!currentUser) {
                   setActiveTab('auth');
