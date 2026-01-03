@@ -358,7 +358,7 @@ export const chatService = {
     };
   },
 
-  // S'abonner aux changements de compteurs de messages non lus
+  // S'abonner aux changements de compteurs de messages non lus (version améliorée)
   subscribeToUnreadCounts(userId: string, callback: (chatId: string, unreadCount: number) => void) {
     console.log('📊 [chatService] Subscribing to unread count changes for user:', userId);
     
@@ -367,18 +367,21 @@ export const chatService = {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'message_reads',
           filter: `user_id=eq.${userId}`,
         },
         async (payload) => {
           try {
+            const messageId = payload.new?.message_id;
+            if (!messageId) return;
+
             // Récupérer le chat_id du message
             const { data: message, error } = await supabase
               .from('messages')
               .select('chat_id')
-              .eq('id', payload.new?.message_id || payload.old?.message_id)
+              .eq('id', messageId)
               .single();
 
             if (error || !message) {
@@ -386,12 +389,12 @@ export const chatService = {
               return;
             }
 
-            // Recalculer le compteur pour ce chat
+            // Recalculer le compteur pour ce chat immédiatement
             const unreadCount = await this.getUnreadCount(message.chat_id, userId);
-            console.log('🔄 [chatService] Unread count updated for chat:', message.chat_id, 'count:', unreadCount);
+            console.log('🔄 [chatService] Message marked as read, updating count for chat:', message.chat_id, 'new count:', unreadCount);
             callback(message.chat_id, unreadCount);
           } catch (error) {
-            console.error('❌ [chatService] Error in unread count subscription callback:', error);
+            console.error('❌ [chatService] Error in message_reads subscription callback:', error);
           }
         }
       )
@@ -407,16 +410,21 @@ export const chatService = {
             const message = payload.new as any;
             
             // Vérifier si ce message concerne un chat de l'utilisateur
-            const { data: chat } = await supabase
+            const { data: chat, error: chatError } = await supabase
               .from('chats')
               .select('participant_ids')
               .eq('id', message.chat_id)
               .single();
 
-            if (chat && chat.participant_ids?.includes(userId) && message.sender_id !== userId) {
-              // Nouveau message non lu pour cet utilisateur
+            if (chatError || !chat) {
+              return;
+            }
+
+            // Si c'est un message reçu (pas envoyé par l'utilisateur)
+            if (chat.participant_ids?.includes(userId) && message.sender_id !== userId) {
+              // Recalculer le compteur pour ce chat
               const unreadCount = await this.getUnreadCount(message.chat_id, userId);
-              console.log('🆕 [chatService] New unread message, updating count for chat:', message.chat_id);
+              console.log('🆕 [chatService] New message received, updating unread count for chat:', message.chat_id, 'count:', unreadCount);
               callback(message.chat_id, unreadCount);
             }
           } catch (error) {

@@ -381,14 +381,19 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
 
     loadMessages();
 
-    // Marquer les messages comme lus quand on ouvre le chat
+    // Marquer les messages comme lus quand on ouvre le chat (immédiatement et périodiquement)
     const markAsRead = async () => {
       try {
         console.log('📖 [ChatList] Marking messages as read for chat:', selectedChat.id);
         await chatService.markMessagesAsRead(selectedChat.id, currentUser.id);
         
-        // Mettre à jour le compteur immédiatement
+        // Attendre un peu pour que la DB se mette à jour
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Recalculer le compteur depuis la DB
         const newUnreadCount = await chatService.getUnreadCount(selectedChat.id, currentUser.id);
+        console.log('📊 [ChatList] Updated unread count after marking as read:', newUnreadCount);
+        
         setUnreadCounts(prev => {
           const updated = { ...prev, [selectedChat.id]: newUnreadCount };
           
@@ -407,10 +412,15 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
       }
     };
 
-    // Marquer comme lus après un court délai pour laisser les messages se charger
-    const markAsReadTimeout = setTimeout(() => {
-      markAsRead();
-    }, 500);
+    // Marquer comme lus immédiatement quand on ouvre le chat
+    markAsRead();
+    
+    // Re-marquer périodiquement pour s'assurer que les nouveaux messages sont aussi marqués comme lus
+    const markAsReadInterval = setInterval(() => {
+      if (isMounted && selectedChat) {
+        markAsRead();
+      }
+    }, 2000); // Toutes les 2 secondes
 
     // Nettoyer les abonnements précédents
     if (subscriptionRef.current) {
@@ -461,9 +471,16 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
           return chat;
         }));
         
-        // Si c'est un message reçu (pas envoyé par l'utilisateur), mettre à jour le compteur
-        // Mais seulement si le chat n'est pas actuellement sélectionné (sinon il sera marqué comme lu automatiquement)
-        // Le compteur sera mis à jour via l'abonnement aux changements de non lus
+        // Si c'est un message reçu (pas envoyé par l'utilisateur) dans le chat ouvert
+        // Le marquer automatiquement comme lu car l'utilisateur voit le message
+        if (message.senderId !== currentUser.id) {
+          // Marquer ce message comme lu immédiatement car l'utilisateur le voit
+          chatService.markMessagesAsRead(selectedChat.id, currentUser.id).then(() => {
+            // Le compteur sera mis à jour via l'abonnement aux changements
+          }).catch(error => {
+            console.error('Error marking new message as read:', error);
+          });
+        }
         
         // Scroller vers le bas
         setTimeout(() => {
@@ -494,7 +511,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
 
     return () => {
       isMounted = false;
-      if (markAsReadTimeout) clearTimeout(markAsReadTimeout);
+      if (markAsReadInterval) clearInterval(markAsReadInterval);
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
@@ -932,8 +949,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
               const listing = getListingForChat(chat);
               
               return (
-                <div 
-                  key={chat.id} 
+          <div 
+            key={chat.id} 
                   onClick={() => handleSelectChat(chat)}
                   className="p-6 flex gap-4 active:bg-gray-50 transition-colors cursor-pointer relative"
                 >
