@@ -17,14 +17,15 @@ interface ChatListProps {
 }
 
 const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatId, onChatSelected, onSelectListing, onUnreadCountChange }) => {
-  // Toujours appeler useAppCache en premier (hook)
+  // Toujours appeler useAppCache en premier (hook) - ne peut pas être conditionnel
   const { getChats, setChats: setCacheChats, getUser, setUser } = useAppCache();
   
   // Tous les states d'abord
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [chats, setChats] = useState<Chat[]>(() => {
     try {
-      return getChats();
+      const cached = getChats();
+      return Array.isArray(cached) ? cached : [];
     } catch (error) {
       console.error('Error initializing chats from cache:', error);
       return [];
