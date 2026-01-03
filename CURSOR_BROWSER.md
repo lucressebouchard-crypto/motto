@@ -1,35 +1,29 @@
 # 🌐 Ouvrir un navigateur de test dans Cursor
 
-Pour ouvrir un second navigateur dans Cursor pour tester avec plusieurs comptes :
+Pour ouvrir un **second navigateur Simple Browser dans Cursor** pour tester avec plusieurs comptes simultanément :
 
-## Méthode 1 : Simple Browser (Recommandé)
+## Méthode la plus rapide
 
-1. Dans Cursor, appuyez sur `Ctrl+Shift+P` (ou `Cmd+Shift+P` sur Mac)
-2. Tapez : `Simple Browser: Show`
-3. Entrez l'URL : `http://localhost:3000`
-4. Appuyez sur Entrée
+1. **Appuyez sur `Ctrl+Shift+P`** (ou `Cmd+Shift+P` sur Mac)
+2. **Tapez** : `Simple Browser: Show`
+3. **Entrez** : `http://localhost:3000`
+4. **Appuyez sur Entrée**
 
-Le navigateur s'ouvrira directement dans Cursor !
+Le Simple Browser s'ouvrira dans Cursor ! Vous pouvez répéter ces étapes pour ouvrir plusieurs instances.
 
-## Méthode 2 : Palette de commandes
+## Raccourci clavier (Après configuration)
 
-1. `Ctrl+Shift+P` (ou `Cmd+Shift+P`)
-2. Tapez : `Simple Browser`
-3. Sélectionnez `Simple Browser: Show`
-4. Entrez `http://localhost:3000`
+Après avoir ouvert ce projet dans Cursor, vous pouvez utiliser :
+- **`Ctrl+Alt+B`** pour ouvrir directement `http://localhost:3000` dans le Simple Browser
 
-## Méthode 3 : Clic sur l'URL
+## Astuce pour plusieurs comptes
 
-1. Si vous voyez `http://localhost:3000` dans le terminal ou un fichier
-2. Maintenez `Ctrl` (ou `Cmd` sur Mac) et cliquez sur l'URL
-3. Cursor devrait ouvrir le Simple Browser
+1. Ouvrez le premier Simple Browser avec `Ctrl+Shift+P` → `Simple Browser: Show` → `http://localhost:3000`
+2. Connectez-vous avec votre premier compte
+3. Ouvrez un **second** Simple Browser en répétant l'étape 1
+4. Connectez-vous avec votre second compte dans cette nouvelle fenêtre
 
-## Raccourci personnalisé (Optionnel)
-
-Vous pouvez créer un raccourci clavier dans Cursor :
-1. `Ctrl+Shift+P` → `Preferences: Open Keyboard Shortcuts`
-2. Recherchez : `Simple Browser`
-3. Ajoutez un raccourci (ex: `Ctrl+Alt+B`)
+Vous pouvez avoir autant de Simple Browser ouverts que vous voulez pour tester différents comptes !
 
 ## Note
 
