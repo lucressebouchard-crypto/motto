@@ -36,7 +36,8 @@
     "test:badges": "playwright test tests/badge-system.spec.ts",
     "test:badges:ui": "playwright test tests/badge-system.spec.ts --ui",
     "test:badges:debug": "playwright test tests/badge-system.spec.ts --debug",
-    "test:report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "browser:test": "node scripts/open-test-browser.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
