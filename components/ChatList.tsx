@@ -651,15 +651,23 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
     return chat.listingId ? (chatListings[chat.id] || null) : null;
   };
 
-  // Filtrer les chats selon la recherche
+  // Filtrer les chats selon la recherche et n'afficher que ceux avec des messages
   const filteredChats = useMemo(() => {
+    // D'abord, filtrer pour ne garder que les chats avec au moins un message
+    const chatsWithMessages = chats.filter(chat => {
+      const hasMessages = chat.messages && chat.messages.length > 0;
+      const hasLastMessage = chat.lastMessage !== null && chat.lastMessage !== undefined;
+      return hasMessages || hasLastMessage;
+    });
+
+    // Ensuite, appliquer le filtre de recherche si nécessaire
     if (!searchQuery.trim()) {
-      return chats;
+      return chatsWithMessages;
     }
 
     const query = searchQuery.toLowerCase().trim();
     
-    return chats.filter(chat => {
+    return chatsWithMessages.filter(chat => {
       // Rechercher dans le nom du participant
       const otherParticipant = getOtherParticipant(chat);
       const participantName = otherParticipant?.name?.toLowerCase() || '';
