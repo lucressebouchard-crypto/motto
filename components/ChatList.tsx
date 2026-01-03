@@ -41,7 +41,9 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
   const [isTyping, setIsTyping] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
   
+  // Tous les refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const listingCardRef = useRef<HTMLDivElement>(null);
@@ -49,7 +51,6 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
   const typingSubscriptionRef = useRef<any>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sendLockRef = useRef(false);
-  const [showScrollToTop, setShowScrollToTop] = useState(false);
 
   // Formater l'heure
   const formatTime = (timestamp: number) => {
@@ -736,6 +737,16 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
   }
 
   // Vue liste des chats
+  if (!currentUser) {
+    return (
+      <div className="bg-white min-h-full flex items-center justify-center">
+        <div className="text-center p-6">
+          <p className="text-gray-400 text-sm font-bold">Veuillez vous connecter pour voir vos conversations</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white min-h-full flex flex-col">
       <header className="p-6 pb-4 space-y-4 sticky top-0 bg-white z-10 border-b border-gray-100">
