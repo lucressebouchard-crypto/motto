@@ -34,6 +34,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [participantsLoaded, setParticipantsLoaded] = useState(false);
   
   // Tous les refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -160,6 +161,25 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
       try {
         const cachedChats = getChats();
         if (Array.isArray(cachedChats) && cachedChats.length > 0) {
+          // Précharger les participants depuis le cache AVANT d'afficher
+          const participantsMap: Record<string, User> = {};
+          for (const chat of cachedChats) {
+            for (const participantId of chat.participants) {
+              if (participantId !== currentUser.id && !participantsMap[participantId]) {
+                const cachedUser = getUser(participantId);
+                if (cachedUser) {
+                  participantsMap[participantId] = cachedUser;
+                }
+              }
+            }
+          }
+          
+          // Mettre à jour les participants depuis le cache
+          if (Object.keys(participantsMap).length > 0) {
+            setChatParticipants(prev => ({ ...prev, ...participantsMap }));
+            setParticipantsLoaded(true);
+          }
+          
           setChats(cachedChats);
           setCacheChats(cachedChats);
           hasLoadedRef.current = true;
@@ -190,11 +210,10 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
         
         // Mettre à jour le cache
         setCacheChats(userChats);
-        setChats(userChats);
         lastLoadTimeRef.current = Date.now();
         hasLoadedRef.current = true;
 
-        // Charger les informations des participants et listings
+        // D'ABORD: Charger TOUS les participants depuis le cache ou la DB
         const participantsMap: Record<string, User> = {};
         const listingsMap: Record<string, Listing> = {};
         const unreadMap: Record<string, number> = {};
@@ -202,8 +221,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
         // Charger en parallèle pour optimiser
         const promises: Promise<void>[] = [];
 
+        // PRIORITÉ 1: Charger tous les participants (depuis cache d'abord, puis DB)
         for (const chat of userChats) {
-          // Participants
           for (const participantId of chat.participants) {
             if (participantId !== currentUser.id && !participantsMap[participantId]) {
               // Vérifier le cache d'abord
@@ -246,12 +265,17 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
           );
         }
 
-        // Attendre que tous les chargements soient terminés
+        // Attendre que tous les participants soient chargés AVANT d'afficher
         await Promise.all(promises);
 
+        // Mettre à jour les états avec les participants chargés
         setChatParticipants(prev => ({ ...prev, ...participantsMap }));
         setChatListings(prev => ({ ...prev, ...listingsMap }));
         setUnreadCounts(unreadMap);
+        
+        // MAINTENANT qu'on a les participants, on peut afficher les chats
+        setChats(userChats);
+        setParticipantsLoaded(true);
         
         const totalUnread = Object.values(unreadMap).reduce((sum, count) => sum + count, 0);
         setTotalUnreadCount(totalUnread);
@@ -1013,11 +1037,19 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
                   className="p-6 flex gap-4 active:bg-gray-50 transition-colors cursor-pointer relative"
                 >
                   <div className="relative flex-shrink-0">
-                    <img 
-                      src={otherParticipant?.avatar || 'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff'} 
-                      className="w-14 h-14 rounded-full border-2 border-indigo-50" 
-                      alt="" 
-                    />
+                    {otherParticipant ? (
+                      <img 
+                        src={otherParticipant.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherParticipant.name)}&background=6366f1&color=fff`} 
+                        className="w-14 h-14 rounded-full border-2 border-indigo-50" 
+                        alt={otherParticipant.name}
+                      />
+                    ) : participantsLoaded ? (
+                      <div className="w-14 h-14 rounded-full border-2 border-indigo-50 bg-gray-200 animate-pulse flex items-center justify-center">
+                        <Loader2 size={16} className="animate-spin text-gray-400" />
+                      </div>
+                    ) : (
+                      <div className="w-14 h-14 rounded-full border-2 border-indigo-50 bg-gray-200" />
+                    )}
                     {onlineUsers.has(otherParticipant?.id || '') && (
                       <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
                     )}
@@ -1030,7 +1062,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-center mb-1">
                       <h3 className="font-bold text-gray-900 truncate text-sm">
-                        {otherParticipant?.name || 'Utilisateur'}
+                        {otherParticipant?.name || (participantsLoaded ? 'Chargement...' : '')}
                       </h3>
                       {lastMessage && (
                         <span className="text-[10px] text-gray-400 font-bold flex-shrink-0 ml-2">
