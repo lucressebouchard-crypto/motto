@@ -17,27 +17,19 @@ interface ChatListProps {
 }
 
 const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatId, onChatSelected, onSelectListing, onUnreadCountChange }) => {
+  // Toujours appeler useAppCache en premier (hook)
   const { getChats, setChats: setCacheChats, getUser, setUser } = useAppCache();
+  
+  // Tous les states d'abord
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
-  
-  // Notifier le parent quand le chat sélectionné change
-  const handleSelectChat = useCallback((chat: Chat | null) => {
-    setSelectedChat(chat);
-    if (onChatSelected) {
-      onChatSelected(chat?.id || null);
+  const [chats, setChats] = useState<Chat[]>(() => {
+    try {
+      return getChats();
+    } catch (error) {
+      console.error('Error initializing chats from cache:', error);
+      return [];
     }
-  }, [onChatSelected]);
-  
-  // Restaurer le chat sélectionné si on revient depuis les détails d'article
-  useEffect(() => {
-    if (selectedChatId && chats.length > 0) {
-      const chatToRestore = chats.find(c => c.id === selectedChatId);
-      if (chatToRestore && (!selectedChat || selectedChat.id !== selectedChatId)) {
-        handleSelectChat(chatToRestore);
-      }
-    }
-  }, [selectedChatId, chats, selectedChat, handleSelectChat]);
-  const [chats, setChats] = useState<Chat[]>(() => getChats()); // Initialiser avec le cache
+  }); // Initialiser avec le cache
   const [loading, setLoading] = useState(false); // Ne plus afficher de chargement par défaut
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -103,6 +95,24 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   }, []);
+
+  // Notifier le parent quand le chat sélectionné change
+  const handleSelectChat = useCallback((chat: Chat | null) => {
+    setSelectedChat(chat);
+    if (onChatSelected) {
+      onChatSelected(chat?.id || null);
+    }
+  }, [onChatSelected]);
+
+  // Restaurer le chat sélectionné si on revient depuis les détails d'article
+  useEffect(() => {
+    if (selectedChatId && chats.length > 0) {
+      const chatToRestore = chats.find(c => c.id === selectedChatId);
+      if (chatToRestore && (!selectedChat || selectedChat.id !== selectedChatId)) {
+        handleSelectChat(chatToRestore);
+      }
+    }
+  }, [selectedChatId, chats, selectedChat, handleSelectChat]);
 
   // Refs pour maintenir l'état entre les rendus
   const hasLoadedRef = useRef(false);
