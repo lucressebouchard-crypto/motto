@@ -70,7 +70,7 @@ export const notificationService = {
   },
 
   subscribeToNotifications(userId: string, callback: (notification: Notification) => void) {
-    return supabase
+    const channel = supabase
       .channel(`notifications:${userId}`)
       .on(
         'postgres_changes',
@@ -81,10 +81,22 @@ export const notificationService = {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          callback(mapNotificationFromDB(payload.new));
+          try {
+            callback(mapNotificationFromDB(payload.new));
+          } catch (error) {
+            console.error('Erreur dans le callback de notification:', error);
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Abonnement aux notifications actif pour:', userId);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erreur de canal pour les notifications:', userId);
+        }
+      });
+    
+    return channel;
   },
 };
 

@@ -17,6 +17,9 @@ export interface SignInData {
   password: string;
 }
 
+// Verrou pour éviter les opérations simultanées d'authentification
+let authLock = false;
+
 export const authService = {
   async signUp(data: SignUpData) {
     console.log('🔐 Starting signup for:', data.email);
@@ -111,43 +114,78 @@ export const authService = {
   },
 
   async signIn(signInData: SignInData) {
-    console.log('🔐 [signIn] Starting signin for:', signInData.email);
-    
-    // Vérifier s'il y a une session active et se déconnecter proprement d'abord
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
-    if (currentSession) {
-      console.log('⚠️ [signIn] Active session detected for user:', currentSession.user.id, '- Signing out first...');
-      try {
-        await supabase.auth.signOut();
-        // Attendre un peu pour que la déconnexion se termine
-        await new Promise(resolve => setTimeout(resolve, 300));
-        console.log('✅ [signIn] Previous session signed out');
-      } catch (signOutError) {
-        console.warn('⚠️ [signIn] Error signing out previous session:', signOutError);
-        // Continuer quand même avec la nouvelle connexion
+    // Vérifier si une opération d'authentification est déjà en cours
+    if (authLock) {
+      console.warn('⚠️ [signIn] Opération d\'authentification déjà en cours, veuillez patienter...');
+      // Attendre que le verrou soit libéré (max 5 secondes)
+      const maxWait = 5000;
+      const startTime = Date.now();
+      while (authLock && (Date.now() - startTime) < maxWait) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      if (authLock) {
+        throw new Error('Une opération d\'authentification est déjà en cours. Veuillez réessayer.');
       }
     }
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: signInData.email,
-      password: signInData.password,
-    });
 
-    if (error) {
-      console.error('❌ [signIn] Signin error:', error);
-      throw error;
+    authLock = true;
+    console.log('🔐 [signIn] Starting signin for:', signInData.email);
+    
+    try {
+      // Vérifier s'il y a une session active et se déconnecter proprement d'abord
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession) {
+        console.log('⚠️ [signIn] Active session detected for user:', currentSession.user.id, '- Signing out first...');
+        try {
+          await supabase.auth.signOut();
+          // Attendre un peu pour que la déconnexion se termine
+          await new Promise(resolve => setTimeout(resolve, 400));
+          console.log('✅ [signIn] Previous session signed out');
+        } catch (signOutError) {
+          console.warn('⚠️ [signIn] Error signing out previous session:', signOutError);
+          // Continuer quand même avec la nouvelle connexion
+        }
+      }
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: signInData.email,
+        password: signInData.password,
+      });
+
+      if (error) {
+        console.error('❌ [signIn] Signin error:', error);
+        throw error;
+      }
+      
+      console.log('✅ [signIn] Signin successful, user:', data.user?.id);
+      console.log('📋 [signIn] Session:', data.session ? 'session exists' : 'no session');
+      
+      // Attendre un peu pour que la session soit bien établie
+      await new Promise(resolve => setTimeout(resolve, 400));
+      
+      return data;
+    } finally {
+      authLock = false;
     }
-    
-    console.log('✅ [signIn] Signin successful, user:', data.user?.id);
-    console.log('📋 [signIn] Session:', data.session ? 'session exists' : 'no session');
-    
-    // Attendre un peu pour que la session soit bien établie
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    return data;
   },
 
   async signOut() {
+    // Vérifier si une opération d'authentification est déjà en cours
+    if (authLock) {
+      console.warn('⚠️ [signOut] Opération d\'authentification déjà en cours, veuillez patienter...');
+      // Attendre que le verrou soit libéré (max 3 secondes)
+      const maxWait = 3000;
+      const startTime = Date.now();
+      while (authLock && (Date.now() - startTime) < maxWait) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      if (authLock) {
+        console.warn('⚠️ [signOut] Verrou toujours actif, forçant la déconnexion locale...');
+        authLock = false;
+      }
+    }
+
+    authLock = true;
     console.log('🚪 [signOut] Starting signout...');
     
     try {
@@ -157,6 +195,7 @@ export const authService = {
         console.log('🔍 [signOut] Current session user:', currentSession.user.id);
       } else {
         console.log('ℹ️ [signOut] No active session found');
+        return; // Pas de session à déconnecter
       }
       
       // Déconnexion principale
@@ -164,69 +203,75 @@ export const authService = {
       
       if (error) {
         console.error('❌ [signOut] Signout error:', error);
-        throw error;
+        // Ne pas throw pour permettre le nettoyage local même en cas d'erreur
+      } else {
+        console.log('✅ [signOut] Signout call completed');
       }
       
-      console.log('✅ [signOut] Signout call completed');
-      
       // Vérifier que la session est bien supprimée
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 300));
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
         console.warn('⚠️ [signOut] Session still exists after signout, trying once more...');
         // Essayer une deuxième fois
         await supabase.auth.signOut();
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 300));
       } else {
         console.log('✅ [signOut] Session confirmed deleted');
       }
       
     } catch (error) {
       console.error('❌ [signOut] Error during signout:', error);
-      throw error;
+      // Ne pas throw pour permettre le nettoyage local
+    } finally {
+      authLock = false;
     }
   },
 
   async getCurrentUser(): Promise<User | null> {
+    // Si une opération d'authentification est en cours, attendre un peu
+    if (authLock) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
     console.log('🔍 [getCurrentUser] Getting session...');
     
-    // Utiliser getSession() au lieu de getUser() car il est plus fiable immédiatement après connexion
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('❌ [getCurrentUser] Session error:', sessionError);
-      return null;
-    }
-    
-    if (!session?.user) {
-      console.log('ℹ️ [getCurrentUser] No active session');
-      return null;
-    }
-
-    const user = session.user;
-    console.log('✅ [getCurrentUser] Session found, user ID:', user.id);
-    console.log('🔍 [getCurrentUser] Fetching profile from users table...');
-
-    // Utiliser maybeSingle() au lieu de single() pour éviter les erreurs si le profil n'existe pas
-    const { data: profile, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ [getCurrentUser] Profile fetch error:', error);
-      console.error('Error details:', { code: error.code, message: error.message });
+    try {
+      // Utiliser getSession() au lieu de getUser() car il est plus fiable immédiatement après connexion
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      // Si erreur réseau ou autre erreur inattendue
-      console.error('❌ [getCurrentUser] Unexpected error, throwing...');
-      throw error;
-    }
-    
-    // Si le profil n'existe pas (maybeSingle retourne null sans erreur)
-    if (!profile) {
-      console.warn('⚠️ [getCurrentUser] User exists in Auth but not in users table. Creating profile...');
+      if (sessionError) {
+        console.error('❌ [getCurrentUser] Session error:', sessionError);
+        return null;
+      }
+      
+      if (!session?.user) {
+        console.log('ℹ️ [getCurrentUser] No active session');
+        return null;
+      }
+
+      const user = session.user;
+      console.log('✅ [getCurrentUser] Session found, user ID:', user.id);
+      console.log('🔍 [getCurrentUser] Fetching profile from users table...');
+
+      // Utiliser maybeSingle() au lieu de single() pour éviter les erreurs si le profil n'existe pas
+      const { data: profile, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ [getCurrentUser] Profile fetch error:', error);
+        console.error('Error details:', { code: error.code, message: error.message });
+        // Ne pas throw, retourner null pour permettre à l'app de continuer
+        return null;
+      }
+      
+      // Si le profil n'existe pas (maybeSingle retourne null sans erreur)
+      if (!profile) {
+        console.warn('⚠️ [getCurrentUser] User exists in Auth but not in users table. Creating profile...');
         // Essayer de créer le profil avec les données de base
         const profileData = {
           id: user.id,
@@ -253,9 +298,13 @@ export const authService = {
         console.log('✅ [getCurrentUser] Profile created successfully');
         return newProfile ? mapUserFromDB(newProfile) : null;
       }
-    
-    console.log('✅ [getCurrentUser] Profile found:', profile.id);
-    return profile ? mapUserFromDB(profile) : null;
+      
+      console.log('✅ [getCurrentUser] Profile found:', profile.id);
+      return profile ? mapUserFromDB(profile) : null;
+    } catch (error) {
+      console.error('❌ [getCurrentUser] Unexpected error:', error);
+      return null;
+    }
   },
 
   async getSession() {
@@ -267,10 +316,21 @@ export const authService = {
     return supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔄 [onAuthStateChange] Event:', event, 'Session:', session ? 'exists' : 'null');
       
+      // Ignorer les événements TOKEN_REFRESHED pour éviter les rechargements inutiles
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('ℹ️ [onAuthStateChange] Token refreshed, ignoring...');
+        return;
+      }
+      
       if (session?.user) {
         console.log('✅ [onAuthStateChange] User authenticated, fetching profile...');
-        const user = await this.getCurrentUser();
-        callback(user);
+        try {
+          const user = await this.getCurrentUser();
+          callback(user);
+        } catch (error) {
+          console.error('❌ [onAuthStateChange] Error fetching user:', error);
+          callback(null);
+        }
       } else {
         console.log('ℹ️ [onAuthStateChange] No session, user logged out');
         callback(null);

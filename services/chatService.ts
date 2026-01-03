@@ -83,26 +83,57 @@ export const chatService = {
   },
 
   async sendMessage(chatId: string, senderId: string, text: string): Promise<Message> {
-    const { data: message, error } = await supabase
-      .from('messages')
-      .insert({
-        chat_id: chatId,
-        sender_id: senderId,
-        text,
-        timestamp: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    // Retry logic pour les opérations critiques
+    let lastError: any = null;
+    const maxRetries = 3;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const { data: message, error } = await supabase
+          .from('messages')
+          .insert({
+            chat_id: chatId,
+            sender_id: senderId,
+            text,
+            timestamp: new Date().toISOString(),
+          })
+          .select()
+          .single();
 
-    if (error) throw error;
+        if (error) {
+          lastError = error;
+          // Ne pas retry pour les erreurs de validation
+          if (error.code === '23505' || error.code === '23503' || error.code === '23514') {
+            throw error;
+          }
+          // Attendre avant de réessayer (backoff exponentiel)
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, attempt * 200));
+            continue;
+          }
+          throw error;
+        }
 
-    // Update chat updated_at
-    await supabase
-      .from('chats')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', chatId);
+        // Update chat updated_at (ne pas retry cette opération si elle échoue)
+        try {
+          await supabase
+            .from('chats')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', chatId);
+        } catch (updateError) {
+          console.warn('Erreur lors de la mise à jour du chat (non bloquant):', updateError);
+        }
 
-    return mapMessageFromDB(message);
+        return mapMessageFromDB(message);
+      } catch (error) {
+        lastError = error;
+        if (attempt === maxRetries) {
+          throw error;
+        }
+      }
+    }
+    
+    throw lastError || new Error('Échec de l\'envoi du message après plusieurs tentatives');
   },
 
   async getMessages(chatId: string): Promise<Message[]> {
@@ -117,7 +148,7 @@ export const chatService = {
   },
 
   subscribeToMessages(chatId: string, callback: (message: Message) => void) {
-    return supabase
+    const channel = supabase
       .channel(`chat:${chatId}`)
       .on(
         'postgres_changes',
@@ -128,10 +159,22 @@ export const chatService = {
           filter: `chat_id=eq.${chatId}`,
         },
         (payload) => {
-          callback(mapMessageFromDB(payload.new));
+          try {
+            callback(mapMessageFromDB(payload.new));
+          } catch (error) {
+            console.error('Erreur dans le callback de message:', error);
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Abonnement aux messages actif pour le chat:', chatId);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erreur de canal pour les messages:', chatId);
+        }
+      });
+    
+    return channel;
   },
 };
 

@@ -33,17 +33,25 @@ const App: React.FC = () => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
+  // Stocker les références aux abonnements pour pouvoir les nettoyer
+  const notificationSubscriptionRef = React.useRef<{ unsubscribe: () => void } | null>(null);
+  const authSubscriptionRef = React.useRef<{ unsubscribe: () => void } | null>(null);
+
   // Charger l'utilisateur et les listings depuis Supabase au démarrage
   useEffect(() => {
+    let isMounted = true;
+
     const loadUser = async () => {
       try {
         const user = await authService.getCurrentUser();
-        if (user) {
+        if (user && isMounted) {
           setCurrentUser(user);
           // Charger les favoris de l'utilisateur
           try {
             const favs = await favoriteService.getByUser(user.id);
-            setFavorites(favs);
+            if (isMounted) {
+              setFavorites(favs);
+            }
           } catch (error) {
             console.error('Erreur lors du chargement des favoris:', error);
           }
@@ -57,12 +65,23 @@ const App: React.FC = () => {
 
     // Écouter les changements d'authentification
     const { data: { subscription } } = authService.onAuthStateChange(async (user) => {
+      if (!isMounted) return;
+
+      // Nettoyer l'abonnement aux notifications précédent
+      if (notificationSubscriptionRef.current) {
+        notificationSubscriptionRef.current.unsubscribe();
+        notificationSubscriptionRef.current = null;
+      }
+
       setCurrentUser(user);
+      
       if (user) {
         // Charger les favoris de l'utilisateur
         try {
           const favs = await favoriteService.getByUser(user.id);
-          setFavorites(favs);
+          if (isMounted) {
+            setFavorites(favs);
+          }
         } catch (error) {
           console.error('Erreur lors du chargement des favoris:', error);
         }
@@ -70,20 +89,27 @@ const App: React.FC = () => {
         // Charger le compteur de notifications non lues
         try {
           const count = await notificationService.getUnreadCount(user.id);
-          setUnreadNotificationsCount(count);
+          if (isMounted) {
+            setUnreadNotificationsCount(count);
+          }
         } catch (error) {
           console.error('Erreur lors du chargement des notifications:', error);
         }
 
         // S'abonner aux nouvelles notifications
         const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {
-          const count = await notificationService.getUnreadCount(user.id);
-          setUnreadNotificationsCount(count);
+          if (!isMounted) return;
+          try {
+            const count = await notificationService.getUnreadCount(user.id);
+            if (isMounted) {
+              setUnreadNotificationsCount(count);
+            }
+          } catch (error) {
+            console.error('Erreur lors de la mise à jour du compteur de notifications:', error);
+          }
         });
-
-        return () => {
-          notifSubscription.unsubscribe();
-        };
+        
+        notificationSubscriptionRef.current = notifSubscription;
       } else {
         // Si l'utilisateur se déconnecte, nettoyer les favoris
         setFavorites([]);
@@ -92,10 +118,24 @@ const App: React.FC = () => {
       }
     });
 
+    authSubscriptionRef.current = subscription;
+
     return () => {
-      subscription.unsubscribe();
+      isMounted = false;
+      // Nettoyer tous les abonnements
+      if (notificationSubscriptionRef.current) {
+        notificationSubscriptionRef.current.unsubscribe();
+        notificationSubscriptionRef.current = null;
+      }
+      if (authSubscriptionRef.current) {
+        authSubscriptionRef.current.unsubscribe();
+        authSubscriptionRef.current = null;
+      }
     };
   }, []);
+
+  // Verrou pour éviter les appels multiples simultanés à toggleFavorite
+  const favoriteLockRef = React.useRef<Set<string>>(new Set());
 
   const toggleFavorite = async (id: string) => {
     if (!currentUser) {
@@ -104,24 +144,42 @@ const App: React.FC = () => {
       return;
     }
 
+    // Vérifier si cette opération est déjà en cours
+    if (favoriteLockRef.current.has(id)) {
+      console.log('⏳ [toggleFavorite] Opération déjà en cours pour:', id);
+      return;
+    }
+
+    // Vérifier la session avant de continuer
+    const session = await authService.getSession();
+    if (!session) {
+      console.warn('⚠️ [toggleFavorite] Aucune session active');
+      setActiveTab('auth');
+      return;
+    }
+
+    // Ajouter au verrou
+    favoriteLockRef.current.add(id);
+
     const isCurrentlyFavorite = favorites.includes(id);
+    const previousFavorites = [...favorites];
     
     try {
+      // Mise à jour optimiste de l'UI
       if (isCurrentlyFavorite) {
-        await favoriteService.remove(currentUser.id, id);
         setFavorites(prev => prev.filter(fid => fid !== id));
+        await favoriteService.remove(currentUser.id, id);
       } else {
-        await favoriteService.add(currentUser.id, id);
         setFavorites(prev => [...prev, id]);
+        await favoriteService.add(currentUser.id, id);
       }
     } catch (error) {
       console.error('Erreur lors de la modification des favoris:', error);
       // Revert en cas d'erreur
-      if (isCurrentlyFavorite) {
-        setFavorites(prev => [...prev, id]);
-      } else {
-        setFavorites(prev => prev.filter(fid => fid !== id));
-      }
+      setFavorites(previousFavorites);
+    } finally {
+      // Retirer du verrou
+      favoriteLockRef.current.delete(id);
     }
   };
 
@@ -164,11 +222,49 @@ const App: React.FC = () => {
     });
   }, [listings, searchQuery]);
 
+  // Verrou pour éviter les appels multiples simultanés de logout
+  const logoutLockRef = React.useRef(false);
+
   const resetViews = () => {
     setShowChats(false);
     setShowNotifications(false);
     setSelectedListing(null);
   };
+
+  // Fonction centralisée pour le logout
+  const handleLogout = React.useCallback(async () => {
+    if (logoutLockRef.current) {
+      console.log('⏳ [handleLogout] Logout déjà en cours...');
+      return;
+    }
+
+    logoutLockRef.current = true;
+    console.log('🔄 [handleLogout] Logout initiated');
+
+    try {
+      // Effectuer la déconnexion
+      await authService.signOut();
+      // Attendre un peu pour que l'événement onAuthStateChange se déclenche
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // Nettoyer l'état local après déconnexion réussie
+      setCurrentUser(null);
+      setActiveTab('home');
+      resetViews();
+      setFavorites([]);
+      setUnreadNotificationsCount(0);
+      console.log('✅ [handleLogout] Logout complete');
+    } catch (error) {
+      console.error('❌ [handleLogout] Erreur lors de la déconnexion:', error);
+      // Nettoyer quand même l'état local même en cas d'erreur
+      setCurrentUser(null);
+      setActiveTab('home');
+      resetViews();
+      setFavorites([]);
+      setUnreadNotificationsCount(0);
+    } finally {
+      logoutLockRef.current = false;
+    }
+  }, []);
 
   const handleProfileClick = () => {
     resetViews();
@@ -284,30 +380,7 @@ const App: React.FC = () => {
             currentUser.role === 'mechanic' ? (
               <MechanicDashboard 
                 user={currentUser} 
-                onLogout={async () => {
-                  try {
-                    console.log('🔄 [App] Logout initiated (mechanic)');
-                    // Effectuer la déconnexion
-                    await authService.signOut();
-                    // Attendre un peu pour que l'événement onAuthStateChange se déclenche
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    // Nettoyer l'état local après déconnexion réussie
-                    setCurrentUser(null);
-                    setActiveTab('home');
-                    resetViews();
-                    setFavorites([]);
-                    setUnreadNotificationsCount(0);
-                    console.log('✅ [App] Logout complete (mechanic)');
-                  } catch (error) {
-                    console.error('❌ [App] Erreur lors de la déconnexion:', error);
-                    // Nettoyer quand même l'état local même en cas d'erreur
-                    setCurrentUser(null);
-                    setActiveTab('home');
-                    resetViews();
-                    setFavorites([]);
-                    setUnreadNotificationsCount(0);
-                  }
-                }} 
+                onLogout={handleLogout} 
                 onExit={() => setActiveTab('home')}
               />
             ) : (
@@ -333,30 +406,7 @@ const App: React.FC = () => {
                 } catch (error) {
                   console.error('Erreur lors du rechargement des listings:', error);
                 }
-              }} onLogout={async () => {
-                  try {
-                    console.log('🔄 [App] Logout initiated');
-                    // Effectuer la déconnexion
-                    await authService.signOut();
-                    // Attendre un peu pour que l'événement onAuthStateChange se déclenche
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    // Nettoyer l'état local après déconnexion réussie
-                    setCurrentUser(null);
-                    setActiveTab('home');
-                    resetViews();
-                    setFavorites([]);
-                    setUnreadNotificationsCount(0);
-                    console.log('✅ [App] Logout complete');
-                  } catch (error) {
-                    console.error('❌ [App] Erreur lors de la déconnexion:', error);
-                    // Nettoyer quand même l'état local même en cas d'erreur
-                    setCurrentUser(null);
-                    setActiveTab('home');
-                    resetViews();
-                    setFavorites([]);
-                    setUnreadNotificationsCount(0);
-                  }
-                }} />
+              }} onLogout={handleLogout} />
             )
           ) : activeTab === 'mechanics' ? (
             <MechanicFeed mechanics={mechanics} onContact={(m) => handleActionRequiringAuth(() => { resetViews(); setShowChats(true); })} />

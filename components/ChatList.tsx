@@ -62,14 +62,25 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
 
   // S'abonner aux nouveaux messages du chat sélectionné
   useEffect(() => {
-    if (!selectedChat || !currentUser) return;
+    if (!selectedChat || !currentUser) {
+      // Nettoyer l'abonnement si pas de chat sélectionné ou d'utilisateur
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
+      }
+      return;
+    }
+
+    let isMounted = true;
 
     // Charger les messages initiaux
     const loadMessages = async () => {
       try {
         const messages = await chatService.getMessages(selectedChat.id);
-        setSelectedChat(prev => prev ? { ...prev, messages } : null);
-        scrollToBottom();
+        if (isMounted) {
+          setSelectedChat(prev => prev ? { ...prev, messages } : null);
+          scrollToBottom();
+        }
       } catch (error) {
         console.error('Erreur lors du chargement des messages:', error);
       }
@@ -77,8 +88,15 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
 
     loadMessages();
 
+    // Nettoyer l'abonnement précédent si existe
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+      subscriptionRef.current = null;
+    }
+
     // S'abonner aux nouveaux messages
     subscriptionRef.current = chatService.subscribeToMessages(selectedChat.id, (message) => {
+      if (!isMounted) return;
       setSelectedChat(prev => {
         if (!prev) return prev;
         // Éviter les doublons
@@ -89,11 +107,13 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser }) => {
     });
 
     return () => {
+      isMounted = false;
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
       }
     };
-  }, [selectedChat?.id, currentUser]);
+  }, [selectedChat?.id, currentUser?.id]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
