@@ -1067,12 +1067,20 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
                       )}
                     </div>
                     {listing && (
-                      <div className="flex items-center gap-2 mb-1 p-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onSelectListing) {
+                            onSelectListing(listing);
+                          }
+                        }}
+                        className="flex items-center gap-2 mb-1 p-2 bg-indigo-50 rounded-lg border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-colors"
+                      >
                         {listing.images && listing.images.length > 0 && (
                           <img 
                             src={listing.images[0]} 
                             alt={listing.title}
-                            className="w-10 h-10 object-cover rounded-lg"
+                            className="w-10 h-10 object-cover rounded-lg flex-shrink-0"
                           />
                         )}
                         <div className="flex-1 min-w-0">
