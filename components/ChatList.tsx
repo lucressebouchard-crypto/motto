@@ -383,17 +383,20 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
 
     // Marquer les messages comme lus quand on ouvre le chat (immédiatement et périodiquement)
     const markAsRead = async () => {
+      if (!isMounted || !selectedChat || !currentUser) return;
+      
       try {
         console.log('📖 [ChatList] Marking messages as read for chat:', selectedChat.id);
         await chatService.markMessagesAsRead(selectedChat.id, currentUser.id);
         
-        // Attendre un peu pour que la DB se mette à jour
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Attendre que la DB se mette à jour
+        await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Recalculer le compteur depuis la DB
+        // Recalculer le compteur depuis la DB - FORCER le rechargement
         const newUnreadCount = await chatService.getUnreadCount(selectedChat.id, currentUser.id);
         console.log('📊 [ChatList] Updated unread count after marking as read:', newUnreadCount);
         
+        // Mettre à jour immédiatement les compteurs locaux
         setUnreadCounts(prev => {
           const updated = { ...prev, [selectedChat.id]: newUnreadCount };
           
@@ -401,12 +404,35 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
           const newTotal = Object.values(updated).reduce((sum, count) => sum + count, 0);
           setTotalUnreadCount(newTotal);
           
+          // Notifier le parent IMMÉDIATEMENT
           if (onUnreadCountChange) {
             onUnreadCountChange(newTotal);
           }
           
           return updated;
         });
+        
+        // Recharger TOUS les compteurs pour s'assurer que tout est synchronisé
+        try {
+          const allChats = await chatService.getByParticipant(currentUser.id);
+          const allUnreadMap: Record<string, number> = {};
+          await Promise.all(
+            allChats.map(chat => 
+              chatService.getUnreadCount(chat.id, currentUser.id).then(count => {
+                allUnreadMap[chat.id] = count;
+              })
+            )
+          );
+          
+          setUnreadCounts(allUnreadMap);
+          const total = Object.values(allUnreadMap).reduce((sum, count) => sum + count, 0);
+          setTotalUnreadCount(total);
+          if (onUnreadCountChange) {
+            onUnreadCountChange(total);
+          }
+        } catch (error) {
+          console.error('Error refreshing all unread counts:', error);
+        }
       } catch (error) {
         console.error('❌ [ChatList] Error marking messages as read:', error);
       }
@@ -417,7 +443,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
     
     // Re-marquer périodiquement pour s'assurer que les nouveaux messages sont aussi marqués comme lus
     const markAsReadInterval = setInterval(() => {
-      if (isMounted && selectedChat) {
+      if (isMounted && selectedChat && currentUser) {
         markAsRead();
       }
     }, 2000); // Toutes les 2 secondes
