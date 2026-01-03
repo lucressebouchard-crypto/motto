@@ -386,15 +386,23 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
       if (!isMounted || !selectedChat || !currentUser) return;
       
       try {
-        console.log('📖 [ChatList] Marking messages as read for chat:', selectedChat.id);
+        console.log('📖 [ChatList] ===== MARKING AS READ =====');
+        console.log('📖 [ChatList] Chat ID:', selectedChat.id);
+        console.log('📖 [ChatList] User ID:', currentUser.id);
+        
+        // Obtenir le compteur AVANT le marquage
+        const beforeCount = await chatService.getUnreadCount(selectedChat.id, currentUser.id);
+        console.log('📖 [ChatList] Unread count BEFORE:', beforeCount);
+        
         await chatService.markMessagesAsRead(selectedChat.id, currentUser.id);
         
         // Attendre que la DB se mette à jour
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // Recalculer le compteur depuis la DB - FORCER le rechargement
         const newUnreadCount = await chatService.getUnreadCount(selectedChat.id, currentUser.id);
-        console.log('📊 [ChatList] Updated unread count after marking as read:', newUnreadCount);
+        console.log('📖 [ChatList] Unread count AFTER:', newUnreadCount);
+        console.log('📖 [ChatList] ===== END MARKING =====\n');
         
         // Mettre à jour immédiatement les compteurs locaux
         setUnreadCounts(prev => {
@@ -402,10 +410,12 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
           
           // Recalculer le total
           const newTotal = Object.values(updated).reduce((sum, count) => sum + count, 0);
+          console.log('🔔 [ChatList] Setting total unread count to:', newTotal);
           setTotalUnreadCount(newTotal);
           
           // Notifier le parent IMMÉDIATEMENT
           if (onUnreadCountChange) {
+            console.log('🔔 [ChatList] Notifying parent of unread count change:', newTotal);
             onUnreadCountChange(newTotal);
           }
           
@@ -424,10 +434,12 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
             )
           );
           
-          setUnreadCounts(allUnreadMap);
           const total = Object.values(allUnreadMap).reduce((sum, count) => sum + count, 0);
+          console.log('🔔 [ChatList] Final total after reload:', total);
+          setUnreadCounts(allUnreadMap);
           setTotalUnreadCount(total);
           if (onUnreadCountChange) {
+            console.log('🔔 [ChatList] Final notification to parent:', total);
             onUnreadCountChange(total);
           }
         } catch (error) {

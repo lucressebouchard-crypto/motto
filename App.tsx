@@ -460,7 +460,10 @@ const AppContent: React.FC = () => {
                 setSelectedListing(listing);
                 setShowChats(false);
               }}
-              onUnreadCountChange={(count) => setUnreadMessagesCount(count)}
+              onUnreadCountChange={(count) => {
+                console.log('🔔 [App] Unread count changed:', count);
+                setUnreadMessagesCount(count);
+              }}
             />
           ) : selectedListing ? (
             <ListingDetails 

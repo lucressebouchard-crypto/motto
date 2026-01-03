@@ -163,7 +163,21 @@ export const chatService = {
       }
 
       if (!messages || messages.length === 0) {
+        console.log(`📊 [chatService] Chat ${chatId}: 0 messages from others`);
         return 0;
+      }
+
+      // Vérifier si la table message_reads existe
+      const { data: testRead, error: testError } = await supabase
+        .from('message_reads')
+        .select('id')
+        .limit(1);
+
+      if (testError) {
+        // Si la table message_reads n'existe pas encore, compter tous les messages non envoyés
+        console.warn('⚠️ [chatService] Table message_reads non disponible, utilisation du fallback');
+        console.warn('💡 [chatService] Execute: npm run supabase:init to create the table');
+        return messages.length;
       }
 
       // Récupérer les IDs des messages déjà lus
@@ -175,13 +189,15 @@ export const chatService = {
         .in('message_id', messageIds);
 
       if (readError) {
-        // Si la table message_reads n'existe pas encore, compter tous les messages non envoyés
-        console.warn('⚠️ [chatService] Table message_reads non disponible, utilisation du fallback');
+        console.error('❌ [chatService] Error fetching read messages:', readError);
+        // Fallback: retourner tous les messages comme non lus
         return messages.length;
       }
 
       const readMessageIds = new Set((readMessages || []).map(m => m.message_id));
       const unreadCount = messages.filter(m => !readMessageIds.has(m.id)).length;
+
+      console.log(`📊 [chatService] Chat ${chatId}: ${unreadCount} unread (${messages.length} total, ${readMessageIds.size} read)`);
 
       return unreadCount;
     } catch (error) {
@@ -230,6 +246,18 @@ export const chatService = {
     try {
       console.log('📖 [chatService] Marking messages as read for chat:', chatId, 'user:', userId);
       
+      // D'abord, vérifier si la table message_reads existe
+      const { data: testRead, error: testError } = await supabase
+        .from('message_reads')
+        .select('id')
+        .limit(1);
+
+      if (testError) {
+        console.error('❌ [chatService] Table message_reads does not exist!', testError);
+        console.error('💡 [chatService] Execute: npm run supabase:init to create the table');
+        return; // Sortir sans erreur pour ne pas bloquer
+      }
+
       // Utiliser la fonction SQL si elle existe
       const { error: rpcError } = await supabase.rpc('mark_chat_messages_as_read', {
         chat_uuid: chatId,
@@ -237,8 +265,7 @@ export const chatService = {
       });
 
       if (rpcError) {
-        // Si la fonction RPC n'existe pas, utiliser une insertion directe
-        console.log('⚠️ [chatService] RPC function not available, using direct insert');
+        console.log('⚠️ [chatService] RPC function not available, using direct insert. Error:', rpcError.message);
         
         // Récupérer tous les messages non lus du chat
         const { data: messages, error: messagesError } = await supabase
@@ -257,6 +284,8 @@ export const chatService = {
           return;
         }
 
+        console.log(`📝 [chatService] Found ${messages.length} messages to mark as read`);
+
         // Insérer les entrées dans message_reads (ignorer les conflits)
         const readEntries = messages.map(msg => ({
           message_id: msg.id,
@@ -264,24 +293,31 @@ export const chatService = {
         }));
 
         // Insérer par batch pour éviter les limites
+        let totalInserted = 0;
         for (let i = 0; i < readEntries.length; i += 100) {
           const batch = readEntries.slice(i, i + 100);
-          const { error: insertError } = await supabase
+          const { data: inserted, error: insertError } = await supabase
             .from('message_reads')
-            .upsert(batch, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
+            .upsert(batch, { onConflict: 'message_id,user_id', ignoreDuplicates: true })
+            .select();
 
           if (insertError) {
             console.error('❌ [chatService] Error marking messages as read:', insertError);
+            console.error('❌ [chatService] Error details:', insertError.code, insertError.message);
             // Continuer avec les autres batches même en cas d'erreur
+          } else {
+            totalInserted += (inserted?.length || 0);
+            console.log(`✅ [chatService] Batch ${i / 100 + 1} inserted: ${inserted?.length || 0} entries`);
           }
         }
 
-        console.log('✅ [chatService] Messages marked as read:', readEntries.length);
+        console.log(`✅ [chatService] Total messages marked as read: ${totalInserted} (${readEntries.length} attempted)`);
       } else {
         console.log('✅ [chatService] Messages marked as read via RPC');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [chatService] Exception marking messages as read:', error);
+      console.error('❌ [chatService] Error details:', error?.code, error?.message);
       // Ne pas throw pour ne pas bloquer l'interface
     }
   },
