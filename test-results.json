@@ -1,0 +1,241 @@
+{
+  "config": {
+    "configFile": "D:\\PERSONNELS\\motto\\playwright.config.ts",
+    "rootDir": "D:/PERSONNELS/motto/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "D:/PERSONNELS/motto/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "D:/PERSONNELS/motto/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 2,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:3000",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "badge-system.spec.ts",
+      "file": "badge-system.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Système de badges de messages - Tests complets",
+          "file": "badge-system.spec.ts",
+          "line": 89,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Test complet: Badges doivent disparaître après lecture",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 16580,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "🌐 Navigation vers l'application...\n"
+                        },
+                        {
+                          "text": "\n📋 TEST 1: Badges doivent disparaître après lecture\n\n"
+                        },
+                        {
+                          "text": "👤 Pas connecté, connexion en cours...\n"
+                        },
+                        {
+                          "text": "🔐 Tentative de connexion avec: test@example.com\n"
+                        },
+                        {
+                          "text": "✅ Connexion terminée\n"
+                        },
+                        {
+                          "text": "💬 Recherche de l'icône de chat...\n"
+                        },
+                        {
+                          "text": "✅ Icône de chat cliquée\n"
+                        },
+                        {
+                          "text": "🔍 Recherche du badge principal sur l'icône de chat...\n"
+                        },
+                        {
+                          "text": "🔍 Recherche d'un chat avec badge dans la liste...\n"
+                        },
+                        {
+                          "text": "⚠️ Aucun chat avec badge trouvé dans la liste\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-03T12:44:19.403Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\PERSONNELS\\motto\\test-results\\badge-system-Système-de-ba-ebf70-t-disparaître-après-lecture-chromium\\test-finished-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\PERSONNELS\\motto\\test-results\\badge-system-Système-de-ba-ebf70-t-disparaître-après-lecture-chromium\\video.webm"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\PERSONNELS\\motto\\test-results\\badge-system-Système-de-ba-ebf70-t-disparaître-après-lecture-chromium\\trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a9ab3abd883f65c7fcac-9184a57989ba4b55d6fb",
+              "file": "badge-system.spec.ts",
+              "line": 127,
+              "column": 3
+            },
+            {
+              "title": "Test: Vérifier que la table message_reads existe",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11654,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "🌐 Navigation vers l'application...\n"
+                        },
+                        {
+                          "text": "\n📋 TEST 2: Vérification de la table message_reads\n\n"
+                        },
+                        {
+                          "text": "✅ Table message_reads existe\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-03T12:44:37.128Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\PERSONNELS\\motto\\test-results\\badge-system-Système-de-ba-5d324--table-message-reads-existe-chromium\\test-finished-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "D:\\PERSONNELS\\motto\\test-results\\badge-system-Système-de-ba-5d324--table-message-reads-existe-chromium\\video.webm"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\PERSONNELS\\motto\\test-results\\badge-system-Système-de-ba-5d324--table-message-reads-existe-chromium\\trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a9ab3abd883f65c7fcac-dec394ca3d907aef2f43",
+              "file": "badge-system.spec.ts",
+              "line": 305,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-01-03T12:44:12.992Z",
+    "duration": 36620.568,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

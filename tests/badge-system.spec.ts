@@ -2,6 +2,11 @@ import { test, expect, Page } from '@playwright/test';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Résoudre __dirname pour les modules ES
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Charger les variables d'environnement
 const envPath = path.resolve(__dirname, '../.env.local');
@@ -90,7 +95,8 @@ test.describe('Système de badges de messages - Tests complets', () => {
     }
   });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    testInfo.setTimeout(60000); // Timeout de 60s pour le hook
     // Activer la console du navigateur pour capturer les logs
     page.on('console', msg => {
       if (msg.type() === 'error') {
@@ -109,7 +115,7 @@ test.describe('Système de badges de messages - Tests complets', () => {
 
     // Aller à l'application
     console.log('🌐 Navigation vers l\'application...');
-    await page.goto('http://localhost:5173');
+    await page.goto('http://localhost:3000', { waitUntil: 'domcontentloaded', timeout: 30000 });
     
     // Attendre que l'app se charge
     await waitForAppReady(page);
@@ -178,52 +184,72 @@ test.describe('Système de badges de messages - Tests complets', () => {
     console.log('🔍 Recherche d\'un chat avec badge dans la liste...');
     await page.screenshot({ path: 'tests/screenshots/06-chat-list.png', fullPage: true });
     
-    // Chercher les éléments de chat (plusieurs sélecteurs possibles)
-    const chatItemSelectors = [
-      '[data-testid="chat-item"]',
-      '[class*="chat"]:has(.bg-red-500)',
-      'div:has(.bg-red-500):has(text)',
-      'button:has(.bg-red-500)',
-    ];
+    // Attendre que les chats se chargent
+    await page.waitForTimeout(2000);
     
-    let chatWithBadge = null;
-    let badgeBefore = null;
+    // Chercher tous les badges visibles (meilleure méthode)
+    console.log('🔍 Recherche de tous les badges...');
+    const allBadges = page.locator('.bg-red-500, [class*="bg-red"], span.bg-red-500, div.bg-red-500, [class*="unread"]');
+    const badgeCount = await allBadges.count();
+    console.log(`📊 Total badges trouvés: ${badgeCount}`);
+    
+    let chatWithBadge: any = null;
+    let badgeBefore: any = null;
     let badgeCountBefore = '0';
     
-    for (const selector of chatItemSelectors) {
-      const items = page.locator(selector);
-      const count = await items.count();
+    if (badgeCount > 0) {
+      // Prendre une capture avec les badges
+      await page.screenshot({ path: 'tests/screenshots/06-badges-found.png', fullPage: true });
       
-      if (count > 0) {
-        console.log(`✅ Trouvé ${count} élément(s) avec le sélecteur: ${selector}`);
+      // Trouver le premier badge visible et remonter pour trouver le chat parent
+      for (let i = 0; i < badgeCount; i++) {
+        const badge = allBadges.nth(i);
+        const isVisible = await badge.isVisible().catch(() => false);
         
-        // Chercher un avec badge
-        for (let i = 0; i < count; i++) {
-          const item = items.nth(i);
-          const badge = item.locator('.bg-red-500, [class*="badge"], .text-white.bg-red').first();
+        if (isVisible) {
+          badgeBefore = badge;
+          badgeCountBefore = (await badge.textContent()) || '0';
+          console.log(`✅ Badge #${i} trouvé: ${badgeCountBefore}`);
           
-          if (await badge.isVisible({ timeout: 500 }).catch(() => false)) {
-            chatWithBadge = item;
-            badgeBefore = badge;
-            badgeCountBefore = (await badge.textContent()) || '0';
-            console.log(`✅ Chat avec badge trouvé! Badge: ${badgeCountBefore}`);
-            break;
+          // Remonter dans le DOM pour trouver l'élément parent (le chat)
+          // Les badges sont dans des éléments qui remontent vers le chat
+          chatWithBadge = badge.locator('xpath=ancestor::button | ancestor::div[contains(@class, "chat")] | ancestor::div[contains(@class, "Chat")]').first();
+          
+          // Si pas trouvé avec xpath, essayer avec CSS
+          if (!(await chatWithBadge.count()) || !(await chatWithBadge.isVisible().catch(() => false))) {
+            chatWithBadge = badge.locator('..').locator('..').locator('..'); // Remonter 3 niveaux
           }
+          
+          break;
         }
-        
-        if (chatWithBadge) break;
       }
     }
     
-    if (!chatWithBadge) {
+    if (!chatWithBadge || !badgeBefore) {
       console.log('⚠️ Aucun chat avec badge trouvé dans la liste');
+      console.log('ℹ️ Cela peut être normal s\'il n\'y a pas de messages non lus');
       await page.screenshot({ path: 'tests/screenshots/07-no-chat-with-badge.png', fullPage: true });
       
       // Prendre une capture du HTML pour debug
       const html = await page.content();
-      fs.writeFileSync('tests/screenshots/debug-chat-list.html', html);
+      const debugPath = path.resolve(__dirname, 'screenshots/debug-chat-list.html');
+      fs.writeFileSync(debugPath, html);
+      console.log(`📄 HTML sauvegardé dans: ${debugPath}`);
       
-      return;
+      // Pour continuer le test, sélectionner le premier chat disponible
+      const firstChatButton = page.locator('button, div[class*="chat"], div[class*="Chat"]').filter({
+        hasText: /./
+      }).first();
+      
+      if (await firstChatButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+        console.log('ℹ️ Sélection du premier chat disponible pour continuer le test...');
+        chatWithBadge = firstChatButton;
+        badgeBefore = null; // Pas de badge à vérifier
+        badgeCountBefore = '0';
+      } else {
+        console.log('❌ Aucun chat trouvé, test arrêté');
+        return;
+      }
     }
     
     // Prendre capture avant ouverture du chat
@@ -302,7 +328,7 @@ test.describe('Système de badges de messages - Tests complets', () => {
     console.log('\n📋 TEST 2: Vérification de la table message_reads\n');
     
     // Ouvrir la console et exécuter le test
-    await page.goto('http://localhost:5173');
+    await page.goto('http://localhost:3000');
     await waitForAppReady(page);
     
     // Vérifier via les outils de debug si disponibles

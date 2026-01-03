@@ -28,7 +28,15 @@
     "supabase:full-auto": "node scripts/full-auto-rls.js",
     "supabase:ultimate-auto": "node scripts/ultimate-auto-rls.js",
     "test:message-reads": "node scripts/test-message-reads.js",
-    "fix:message-reads": "node scripts/fix-message-reads.js"
+    "fix:message-reads": "node scripts/fix-message-reads.js",
+    "create:message-reads": "node scripts/create-message-reads-direct.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:badges": "playwright test tests/badge-system.spec.ts",
+    "test:badges:ui": "playwright test tests/badge-system.spec.ts --ui",
+    "test:badges:debug": "playwright test tests/badge-system.spec.ts --debug",
+    "test:report": "playwright show-report"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",

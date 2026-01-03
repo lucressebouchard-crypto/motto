@@ -28,3 +28,12 @@ dist-ssr
 
 # Supabase
 .supabase
+
+# Playwright
+test-results/
+playwright-report/
+tests/screenshots/
+*.png
+*.jpg
+*.mp4
+*.webm
