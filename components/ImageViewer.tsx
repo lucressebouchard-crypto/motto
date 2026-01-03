@@ -300,8 +300,29 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
 
       {/* Miniatures en bas (si plusieurs images) */}
       {images.length > 1 && (
-        <div className="absolute bottom-20 left-0 right-0 z-10 overflow-x-auto px-4 pb-2 scrollbar-hide">
-          <div className="flex gap-2 justify-center max-w-4xl mx-auto min-w-fit">
+        <div 
+          className="absolute bottom-20 left-0 right-0 z-10 overflow-x-auto pb-2"
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          <style>{`
+            [data-thumbnails-scroll]::-webkit-scrollbar {
+              display: none;
+            }
+          `}</style>
+          <div 
+            data-thumbnails-scroll
+            className="flex gap-2 items-center"
+            style={{ 
+              width: 'max-content', 
+              margin: '0 auto',
+              paddingLeft: 'max(1rem, calc((100vw - 64px) / 2))',
+              paddingRight: 'max(1rem, calc((100vw - 64px) / 2))',
+            }}
+          >
             {images.map((img, idx) => (
               <button
                 key={idx}
@@ -314,12 +335,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
                     ? 'border-white scale-110'
                     : 'border-white/30 hover:border-white/60'
                 }`}
-                style={{ minWidth: '64px' }}
+                style={{ minWidth: '64px', flexShrink: 0 }}
               >
                 <img
                   src={img}
                   alt={`Miniature ${idx + 1}`}
                   className="w-full h-full object-cover"
+                  draggable={false}
                 />
               </button>
             ))}
