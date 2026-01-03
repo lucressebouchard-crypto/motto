@@ -300,8 +300,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
 
       {/* Miniatures en bas (si plusieurs images) */}
       {images.length > 1 && (
-        <div className="absolute bottom-20 left-0 right-0 z-10 overflow-x-auto px-4 pb-2">
-          <div className="flex gap-2 justify-center max-w-4xl mx-auto">
+        <div className="absolute bottom-20 left-0 right-0 z-10 overflow-x-auto px-4 pb-2 scrollbar-hide">
+          <div className="flex gap-2 justify-center max-w-4xl mx-auto min-w-fit">
             {images.map((img, idx) => (
               <button
                 key={idx}
@@ -314,6 +314,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, initialIndex, onClose
                     ? 'border-white scale-110'
                     : 'border-white/30 hover:border-white/60'
                 }`}
+                style={{ minWidth: '64px' }}
               >
                 <img
                   src={img}
