@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Listing, User, Chat } from '../types';
 import ListingCard from './ListingCard';
+import ImageViewer from './ImageViewer';
 import { chatService } from '../services/chatService';
 
 interface ListingDetailsProps {
@@ -37,6 +38,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
   const [sendingMessage, setSendingMessage] = useState(false);
   const [existingChat, setExistingChat] = useState<Chat | null>(null);
   const [checkingChat, setCheckingChat] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   const formatFCFA = (p: number) => p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " FCFA";
 
@@ -208,8 +211,20 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack, onMess
 
           <div ref={scrollRef} onScroll={handleScroll} className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar h-full">
             {listing.images.map((img, idx) => (
-              <div key={idx} className="flex-none w-full h-full snap-center">
-                <img src={img} className="w-full h-full object-cover" alt={listing.title} />
+              <div 
+                key={idx} 
+                className="flex-none w-full h-full snap-center cursor-pointer"
+                onClick={() => {
+                  setSelectedImageIndex(idx);
+                  setImageViewerOpen(true);
+                }}
+              >
+                <img 
+                  src={img} 
+                  className="w-full h-full object-cover" 
+                  alt={listing.title}
+                  draggable={false}
+                />
               </div>
             ))}
           </div>
