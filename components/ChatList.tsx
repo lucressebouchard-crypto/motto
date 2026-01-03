@@ -22,15 +22,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
   
   // Tous les states d'abord
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
-  const [chats, setChats] = useState<Chat[]>(() => {
-    try {
-      const cached = getChats();
-      return Array.isArray(cached) ? cached : [];
-    } catch (error) {
-      console.error('Error initializing chats from cache:', error);
-      return [];
-    }
-  }); // Initialiser avec le cache
+  const [chats, setChats] = useState<Chat[]>([]); // Ne pas initialiser depuis le cache pour éviter les problèmes d'initialisation
   const [loading, setLoading] = useState(false); // Ne plus afficher de chargement par défaut
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
