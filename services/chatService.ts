@@ -150,52 +150,43 @@ export const chatService = {
   async getUnreadCount(chatId: string, userId: string): Promise<number> {
     // Compter uniquement les messages non lus (non envoyés par l'utilisateur et non marqués comme lus)
     try {
-      // Compter les messages envoyés par les autres qui n'ont pas été marqués comme lus
-      const { data, error } = await supabase
-        .rpc('get_unread_message_count', { 
-          p_chat_id: chatId, 
-          p_user_id: userId 
-        });
+      // Récupérer tous les messages du chat envoyés par d'autres
+      const { data: messages, error: messagesError } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('chat_id', chatId)
+        .neq('sender_id', userId);
 
-      if (error) {
-        // Si la fonction RPC n'existe pas, utiliser une requête SQL directe
-        const { count, error: countError } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('chat_id', chatId)
-          .neq('sender_id', userId)
-          .not('id', 'in', `(
-            SELECT message_id 
-            FROM message_reads 
-            WHERE user_id = '${userId}'
-          )`);
-
-        if (countError) {
-          // Fallback: compter simplement les messages non envoyés par l'utilisateur
-          const { count: fallbackCount, error: fallbackError } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('chat_id', chatId)
-            .neq('sender_id', userId);
-
-          if (fallbackError) {
-            console.error('❌ [chatService] Erreur lors du comptage des messages non lus:', fallbackError);
-            return 0;
-          }
-          return fallbackCount || 0;
-        }
-
-        const unreadCount = count || 0;
-        console.log(`📊 [chatService] Unread count for chat ${chatId}:`, unreadCount);
-        return unreadCount;
+      if (messagesError) {
+        console.error('❌ [chatService] Erreur lors de la récupération des messages:', messagesError);
+        return 0;
       }
-      
-      const unreadCount = data || 0;
-      console.log(`📊 [chatService] Unread count for chat ${chatId}:`, unreadCount);
+
+      if (!messages || messages.length === 0) {
+        return 0;
+      }
+
+      // Récupérer les IDs des messages déjà lus
+      const messageIds = messages.map(m => m.id);
+      const { data: readMessages, error: readError } = await supabase
+        .from('message_reads')
+        .select('message_id')
+        .eq('user_id', userId)
+        .in('message_id', messageIds);
+
+      if (readError) {
+        // Si la table message_reads n'existe pas encore, compter tous les messages non envoyés
+        console.warn('⚠️ [chatService] Table message_reads non disponible, utilisation du fallback');
+        return messages.length;
+      }
+
+      const readMessageIds = new Set((readMessages || []).map(m => m.message_id));
+      const unreadCount = messages.filter(m => !readMessageIds.has(m.id)).length;
+
       return unreadCount;
     } catch (error) {
       console.error('❌ [chatService] Exception lors du comptage des messages non lus:', error);
-      // Fallback simple
+      // Fallback simple en cas d'erreur
       try {
         const { count } = await supabase
           .from('messages')
