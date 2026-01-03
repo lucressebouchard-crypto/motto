@@ -98,15 +98,45 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
     }
   }, [onChatSelected]);
 
-  // Restaurer le chat sélectionné si on revient depuis les détails d'article
+  // Ouvrir directement le chat sélectionné (depuis les détails d'article)
   useEffect(() => {
-    if (selectedChatId && chats.length > 0) {
-      const chatToRestore = chats.find(c => c.id === selectedChatId);
-      if (chatToRestore && (!selectedChat || selectedChat.id !== selectedChatId)) {
-        handleSelectChat(chatToRestore);
+    if (selectedChatId && currentUser) {
+      // Si les chats sont déjà chargés, trouver et ouvrir le chat
+      if (chats.length > 0) {
+        const chatToOpen = chats.find(c => c.id === selectedChatId);
+        if (chatToOpen && (!selectedChat || selectedChat.id !== selectedChatId)) {
+          handleSelectChat(chatToOpen);
+        }
+      } else {
+        // Si les chats ne sont pas encore chargés, charger le chat spécifique directement
+        const loadSpecificChat = async () => {
+          try {
+            setLoading(true);
+            const chat = await chatService.getById(selectedChatId);
+            if (chat) {
+              handleSelectChat(chat);
+              // Ajouter le chat à la liste si pas déjà présent
+              setChats(prev => {
+                if (!prev.find(c => c.id === chat.id)) {
+                  return [chat, ...prev];
+                }
+                return prev;
+              });
+              // Charger aussi les autres chats en arrière-plan
+              const allChats = await chatService.getByParticipant(currentUser.id);
+              setChats(allChats);
+              setCacheChats(allChats);
+            }
+            setLoading(false);
+          } catch (error) {
+            console.error('Error loading specific chat:', error);
+            setLoading(false);
+          }
+        };
+        loadSpecificChat();
       }
     }
-  }, [selectedChatId, chats, selectedChat, handleSelectChat]);
+  }, [selectedChatId, chats, selectedChat, handleSelectChat, currentUser, setCacheChats]);
 
   // Refs pour maintenir l'état entre les rendus
   const hasLoadedRef = useRef(false);
@@ -585,13 +615,19 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
     return (
       <div className="flex flex-col h-screen bg-gray-50">
         {/* Header */}
-        <header className="bg-white p-4 border-b border-gray-100 flex items-center gap-3 sticky top-0 z-10">
+        <header className="bg-white p-4 border-b border-gray-100 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
           <button 
             onClick={() => {
               handleSelectChat(null);
               setIsTyping(false);
+              // Notifier le parent qu'on revient à la liste
+              if (onChatSelected) {
+                onChatSelected(null);
+              }
             }} 
-            className="text-gray-600 hover:text-gray-900"
+            className="text-gray-600 hover:text-gray-900 transition-colors p-1 hover:bg-gray-100 rounded-full"
+            title="Retour aux conversations"
+            aria-label="Retour aux conversations"
           >
             <ChevronLeft size={24} />
           </button>

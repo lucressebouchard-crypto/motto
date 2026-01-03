@@ -435,6 +435,13 @@ const AppContent: React.FC = () => {
                   setSelectedChatId(null); // Nettoyer aussi le chat sélectionné
                 }
               }}
+              onOpenChat={(chatId) => {
+                // Ouvrir directement le chat spécifique
+                setSelectedChatId(chatId);
+                setReturnToChat(true);
+                setSelectedListing(null);
+                setShowChats(true);
+              }}
               onMessage={async () => {
                 if (!currentUser) {
                   setActiveTab('auth');
