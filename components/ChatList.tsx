@@ -124,6 +124,21 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
     const timeSinceLastLoad = now - lastLoadTimeRef.current;
     const CACHE_DURATION = 10000; // 10 secondes de cache
 
+    // Vérifier le cache d'abord si on n'a pas encore chargé
+    if (!hasLoadedRef.current) {
+      try {
+        const cachedChats = getChats();
+        if (Array.isArray(cachedChats) && cachedChats.length > 0) {
+          setChats(cachedChats);
+          setCacheChats(cachedChats);
+          hasLoadedRef.current = true;
+          lastLoadTimeRef.current = now;
+        }
+      } catch (error) {
+        console.error('Error loading chats from cache:', error);
+      }
+    }
+
     // Si les chats sont déjà chargés et récents, ne pas recharger
     if (hasLoadedRef.current && timeSinceLastLoad < CACHE_DURATION && chats.length > 0) {
       setLoading(false);
