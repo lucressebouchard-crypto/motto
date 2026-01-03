@@ -33,6 +33,7 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
   const [isTyping, setIsTyping] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Tous les refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -626,6 +627,44 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
     return chat.listingId ? (chatListings[chat.id] || null) : null;
   };
 
+  // Filtrer les chats selon la recherche
+  const filteredChats = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return chats;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    
+    return chats.filter(chat => {
+      // Rechercher dans le nom du participant
+      const otherParticipant = getOtherParticipant(chat);
+      const participantName = otherParticipant?.name?.toLowerCase() || '';
+      if (participantName.includes(query)) {
+        return true;
+      }
+
+      // Rechercher dans le titre de l'article
+      const listing = getListingForChat(chat);
+      if (listing) {
+        const listingTitle = listing.title?.toLowerCase() || '';
+        if (listingTitle.includes(query)) {
+          return true;
+        }
+      }
+
+      // Rechercher dans le dernier message
+      const lastMessage = chat.lastMessage || (chat.messages && chat.messages[chat.messages.length - 1]);
+      if (lastMessage) {
+        const messageText = lastMessage.text?.toLowerCase() || '';
+        if (messageText.includes(query)) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+  }, [chats, searchQuery, chatParticipants, chatListings]);
+
   // Rendu de la carte d'article compacte (pour les messages)
   const renderListingCardInline = (listing: Listing) => {
     if (!onSelectListing) return null;
@@ -931,6 +970,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
           <input 
             type="text" 
             placeholder="Rechercher une conversation..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-indigo-500"
           />
         </div>
@@ -948,7 +989,18 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
           </div>
         ) : (
       <div className="divide-y divide-gray-50">
-            {chats.map(chat => {
+            {filteredChats.length === 0 && searchQuery.trim() ? (
+              <div className="flex flex-col items-center justify-center py-20 px-4">
+                <Search className="text-gray-300 mb-4" size={48} />
+                <p className="text-gray-500 font-medium text-center">
+                  Aucune conversation trouvée pour "{searchQuery}"
+                </p>
+                <p className="text-gray-400 text-sm mt-2 text-center">
+                  Essayez de rechercher par nom, article ou message
+                </p>
+              </div>
+            ) : (
+              filteredChats.map(chat => {
               const otherParticipant = getOtherParticipant(chat);
               const lastMessage = chat.lastMessage || (chat.messages && chat.messages[chat.messages.length - 1]);
               const unreadCount = unreadCounts[chat.id] || 0;
@@ -1013,7 +1065,8 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
               </div>
             </div>
               );
-            })}
+              })
+            )}
           </div>
         )}
       </div>
