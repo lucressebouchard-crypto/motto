@@ -148,37 +148,52 @@ export const chatService = {
   },
 
   async getUnreadCount(chatId: string, userId: string): Promise<number> {
-    // Pour simplifier, on considère tous les messages non lus par défaut
-    // Dans une version future, on pourrait ajouter une table message_reads
-    const { count, error } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('chat_id', chatId)
-      .neq('sender_id', userId);
+    // Compter uniquement les messages envoyés par les autres participants
+    // Pour l'instant, on considère tous les messages non envoyés par l'utilisateur comme non lus
+    // Dans une version future, on pourrait ajouter une table message_reads pour un suivi précis
+    try {
+      const { count, error } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('chat_id', chatId)
+        .neq('sender_id', userId);
 
-    if (error) {
-      console.error('Erreur lors du comptage des messages non lus:', error);
+      if (error) {
+        console.error('❌ [chatService] Erreur lors du comptage des messages non lus:', error);
+        return 0;
+      }
+      
+      const unreadCount = count || 0;
+      console.log(`📊 [chatService] Unread count for chat ${chatId}:`, unreadCount);
+      return unreadCount;
+    } catch (error) {
+      console.error('❌ [chatService] Exception lors du comptage des messages non lus:', error);
       return 0;
     }
-    return count || 0;
   },
 
   async getTotalUnreadCount(userId: string): Promise<number> {
     try {
+      console.log('📊 [chatService] Calculating total unread count for user:', userId);
+      
       // Récupérer tous les chats de l'utilisateur
       const chats = await this.getByParticipant(userId);
+      console.log('📋 [chatService] Found', chats.length, 'chats');
       
       let totalUnread = 0;
       
       // Pour chaque chat, compter les messages envoyés par les autres
-      for (const chat of chats) {
-        const unread = await this.getUnreadCount(chat.id, userId);
-        totalUnread += unread;
-      }
+      // Utiliser Promise.all pour paralléliser les requêtes
+      const unreadCounts = await Promise.all(
+        chats.map(chat => this.getUnreadCount(chat.id, userId))
+      );
       
+      totalUnread = unreadCounts.reduce((sum, count) => sum + count, 0);
+      
+      console.log('✅ [chatService] Total unread count:', totalUnread);
       return totalUnread;
     } catch (error) {
-      console.error('Erreur lors du calcul du total de messages non lus:', error);
+      console.error('❌ [chatService] Erreur lors du calcul du total de messages non lus:', error);
       return 0;
     }
   },

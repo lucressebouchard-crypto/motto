@@ -269,10 +269,33 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
 
     loadChats();
     
-    // Recharger périodiquement pour mettre à jour les compteurs (seulement si nécessaire)
+    // Recharger périodiquement pour mettre à jour les compteurs et synchroniser les messages
     const interval = setInterval(() => {
-      if (!loadingRef.current) {
+      if (!loadingRef.current && currentUser) {
+        // Recharger les chats et compteurs en arrière-plan
         loadChats();
+        
+        // Recharger aussi les messages du chat actuellement ouvert pour synchronisation
+        if (selectedChat) {
+          chatService.getMessages(selectedChat.id).then(messages => {
+            if (isMounted) {
+              setSelectedChat(prev => {
+                if (!prev) return prev;
+                // Fusionner les messages (éviter doublons)
+                const existingIds = new Set(prev.messages.map(m => m.id));
+                const newMessages = messages.filter(m => !existingIds.has(m.id));
+                if (newMessages.length > 0) {
+                  const allMessages = [...prev.messages, ...newMessages]
+                    .sort((a, b) => a.timestamp - b.timestamp);
+                  return { ...prev, messages: allMessages };
+                }
+                return prev;
+              });
+            }
+          }).catch(error => {
+            console.error('Erreur lors du rechargement des messages:', error);
+          });
+        }
       }
     }, 30000); // Toutes les 30 secondes
     
@@ -326,16 +349,32 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
 
     let isMounted = true;
 
-    // Charger les messages initiaux
+    // Charger les messages existants depuis la DB pour s'assurer qu'ils sont tous là
     const loadMessages = async () => {
       try {
+        console.log('📥 [ChatList] Loading messages for chat:', selectedChat.id);
         const messages = await chatService.getMessages(selectedChat.id);
-        if (isMounted) {
-          setSelectedChat(prev => prev ? { ...prev, messages } : null);
-          scrollToBottom();
+        console.log('✅ [ChatList] Loaded', messages.length, 'messages');
+        
+        if (isMounted && selectedChat) {
+          // Mettre à jour avec les messages de la DB
+          setSelectedChat(prev => {
+            if (!prev) return prev;
+            // Fusionner les messages existants avec ceux de la DB (éviter doublons)
+            const existingIds = new Set(prev.messages.map(m => m.id));
+            const newMessages = messages.filter(m => !existingIds.has(m.id));
+            const allMessages = [...prev.messages, ...newMessages]
+              .sort((a, b) => a.timestamp - b.timestamp);
+            return { ...prev, messages: allMessages };
+          });
+          
+          // Forcer le scroll après un court délai pour laisser le DOM se mettre à jour
+          setTimeout(() => {
+            scrollToBottom();
+          }, 100);
         }
       } catch (error) {
-        console.error('Erreur lors du chargement des messages:', error);
+        console.error('❌ [ChatList] Erreur lors du chargement des messages:', error);
       }
     };
 
@@ -351,30 +390,68 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
       typingSubscriptionRef.current = null;
     }
 
-    // S'abonner aux nouveaux messages
-    subscriptionRef.current = chatService.subscribeToMessages(selectedChat.id, (message) => {
-      if (!isMounted) return;
+    // S'abonner aux nouveaux messages avec retry et meilleure gestion
+    const setupMessageSubscription = () => {
+      console.log('📡 [ChatList] Setting up Realtime subscription for chat:', selectedChat.id);
       
-      // Vérifier que le message n'est pas déjà présent (éviter doublons)
-      setSelectedChat(prev => {
-        if (!prev) return prev;
-        if (prev.messages.some(m => m.id === message.id)) return prev;
-        return { ...prev, messages: [...prev.messages, message] };
-      });
-      
-      // Mettre à jour la liste des chats
-      setChats(prev => prev.map(chat => {
-        if (chat.id === selectedChat.id) {
-          const lastMessage = chat.messages[chat.messages.length - 1];
-          if (!lastMessage || message.timestamp > lastMessage.timestamp) {
-            return { ...chat, lastMessage: message, lastMessageAt: message.timestamp };
+      subscriptionRef.current = chatService.subscribeToMessages(selectedChat.id, (message) => {
+        if (!isMounted) return;
+        
+        console.log('📨 [ChatList] New message received via Realtime:', message.id);
+        
+        // Vérifier que le message n'est pas déjà présent (éviter doublons)
+        setSelectedChat(prev => {
+          if (!prev) return prev;
+          // Vérifier par ID ET par timestamp+text pour éviter les doublons
+          const exists = prev.messages.some(m => 
+            m.id === message.id || 
+            (m.senderId === message.senderId && 
+             m.text === message.text && 
+             Math.abs(m.timestamp - message.timestamp) < 1000) // Même message envoyé dans la même seconde
+          );
+          if (exists) {
+            console.log('⚠️ [ChatList] Duplicate message ignored:', message.id);
+            return prev;
+          }
+          console.log('✅ [ChatList] Adding message to chat:', message.id);
+          const updated = { ...prev, messages: [...prev.messages, message] };
+          return updated;
+        });
+        
+        // Mettre à jour la liste des chats avec le dernier message
+        setChats(prev => prev.map(chat => {
+          if (chat.id === selectedChat.id) {
+            const lastMessage = chat.lastMessage;
+            if (!lastMessage || message.timestamp > lastMessage.timestamp) {
+              return { ...chat, lastMessage: message, lastMessageAt: message.timestamp };
+            }
+          }
+          return chat;
+        }));
+        
+        // Mettre à jour le compteur de non lus pour les autres chats
+        if (message.senderId !== currentUser.id) {
+          setUnreadCounts(prev => {
+            const current = prev[selectedChat.id] || 0;
+            return { ...prev, [selectedChat.id]: current + 1 };
+          });
+          // Recalculer le total
+          setTotalUnreadCount(prev => prev + 1);
+          if (onUnreadCountChange) {
+            const newTotal = Object.values({ ...unreadCounts, [selectedChat.id]: (unreadCounts[selectedChat.id] || 0) + 1 })
+              .reduce((sum, count) => sum + count, 0);
+            onUnreadCountChange(newTotal);
           }
         }
-        return chat;
-      }));
-      
-      scrollToBottom();
-    });
+        
+        // Scroller vers le bas
+        setTimeout(() => {
+          scrollToBottom();
+        }, 50);
+      });
+    };
+    
+    setupMessageSubscription();
 
     // S'abonner aux indicateurs de frappe
     typingSubscriptionRef.current = chatService.subscribeToTyping(

@@ -132,18 +132,25 @@ export const authService = {
     console.log('🔐 [signIn] Starting signin for:', signInData.email);
     
     try {
-      // Vérifier s'il y a une session active et se déconnecter proprement d'abord
+      // Vérifier s'il y a une session active
+      // NOTE: Pour tester plusieurs utilisateurs, on permet plusieurs sessions
+      // La déconnexion de la session précédente sera gérée automatiquement par Supabase
       const { data: { session: currentSession } } = await supabase.auth.getSession();
-      if (currentSession) {
-        console.log('⚠️ [signIn] Active session detected for user:', currentSession.user.id, '- Signing out first...');
+      if (currentSession && currentSession.user.email !== signInData.email) {
+        // Seulement se déconnecter si c'est un utilisateur différent
+        console.log('⚠️ [signIn] Different user session detected, signing out first...');
         try {
           await supabase.auth.signOut();
-          // Attendre un peu pour que la déconnexion se termine
-          await new Promise(resolve => setTimeout(resolve, 400));
+          // Attendre que la déconnexion se termine
+          await new Promise(resolve => setTimeout(resolve, 500));
           console.log('✅ [signIn] Previous session signed out');
         } catch (signOutError) {
           console.warn('⚠️ [signIn] Error signing out previous session:', signOutError);
-          // Continuer quand même avec la nouvelle connexion
+          // Forcer la déconnexion locale si nécessaire
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('motto-supabase-auth-token');
+            sessionStorage.clear();
+          }
         }
       }
       
@@ -314,25 +321,41 @@ export const authService = {
 
   onAuthStateChange(callback: (user: User | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 [onAuthStateChange] Event:', event, 'Session:', session ? 'exists' : 'null');
+      console.log('🔄 [onAuthStateChange] Event:', event, 'Session:', session ? `exists (user: ${session.user?.id})` : 'null');
       
-      // Ignorer les événements TOKEN_REFRESHED pour éviter les rechargements inutiles
+      // Gérer les différents types d'événements
       if (event === 'TOKEN_REFRESHED') {
-        console.log('ℹ️ [onAuthStateChange] Token refreshed, ignoring...');
+        console.log('ℹ️ [onAuthStateChange] Token refreshed, session still valid');
+        // Ne pas appeler le callback pour éviter les rechargements inutiles
+        return;
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        console.log('🚪 [onAuthStateChange] User signed out');
+        callback(null);
         return;
       }
       
       if (session?.user) {
-        console.log('✅ [onAuthStateChange] User authenticated, fetching profile...');
+        console.log('✅ [onAuthStateChange] Session active, fetching user profile...');
         try {
+          // Attendre un peu pour que la session soit bien établie
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
           const user = await this.getCurrentUser();
-          callback(user);
+          if (user) {
+            console.log('✅ [onAuthStateChange] User profile loaded:', user.id);
+            callback(user);
+          } else {
+            console.warn('⚠️ [onAuthStateChange] Session exists but profile not found');
+            callback(null);
+          }
         } catch (error) {
           console.error('❌ [onAuthStateChange] Error fetching user:', error);
           callback(null);
         }
       } else {
-        console.log('ℹ️ [onAuthStateChange] No session, user logged out');
+        console.log('ℹ️ [onAuthStateChange] No active session');
         callback(null);
       }
     });

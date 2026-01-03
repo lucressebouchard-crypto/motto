@@ -45,12 +45,20 @@ const AppContent: React.FC = () => {
   // Charger l'utilisateur et les listings depuis Supabase au démarrage
   useEffect(() => {
     let isMounted = true;
+    let initTimeout: NodeJS.Timeout;
 
     const loadUser = async () => {
       try {
+        console.log('🔄 [App] Restoring session on mount...');
+        
+        // Attendre un peu pour que Supabase restaure la session depuis localStorage
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
         const user = await authService.getCurrentUser();
         if (user && isMounted) {
+          console.log('✅ [App] Session restored, user:', user.id);
           setCurrentUser(user);
+          
           // Charger les favoris de l'utilisateur
           try {
             const favs = await favoriteService.getByUser(user.id);
@@ -60,13 +68,43 @@ const AppContent: React.FC = () => {
           } catch (error) {
             console.error('Erreur lors du chargement des favoris:', error);
           }
+          
+          // Charger le compteur de notifications
+          try {
+            const notifCount = await notificationService.getUnreadCount(user.id);
+            if (isMounted) {
+              setUnreadNotificationsCount(notifCount);
+            }
+          } catch (error) {
+            console.error('Erreur lors du chargement des notifications:', error);
+          }
+          
+          // Charger le compteur de messages
+          try {
+            const msgCount = await chatService.getTotalUnreadCount(user.id);
+            if (isMounted) {
+              setUnreadMessagesCount(msgCount);
+            }
+          } catch (error) {
+            console.error('Erreur lors du chargement des messages:', error);
+          }
+        } else {
+          console.log('ℹ️ [App] No active session found');
         }
       } catch (error) {
-        console.error('Erreur lors du chargement de l\'utilisateur:', error);
+        console.error('❌ [App] Erreur lors du chargement de l\'utilisateur:', error);
       }
     };
 
-    loadUser();
+    // Lancer le chargement après un court délai pour laisser Supabase restaurer la session
+    initTimeout = setTimeout(() => {
+      loadUser();
+    }, 100);
+
+    return () => {
+      isMounted = false;
+      if (initTimeout) clearTimeout(initTimeout);
+    };
 
     // Écouter les changements d'authentification
     const { data: { subscription } } = authService.onAuthStateChange(async (user) => {
