@@ -19,15 +19,24 @@ export default defineConfig({
   },
   
   /* Configuration du rapport */
-  fullyParallel: true,
+  fullyParallel: false, // Désactiver le parallélisme pour les tests de badges
   forbidOnly: !!process.env.CI,
-  reporter: 'html',
+  reporter: [
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['list'],
+    ['json', { outputFile: 'test-results.json' }]
+  ],
   
   /* Configuration partagée */
   use: {
     baseURL: 'http://localhost:5173',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    trace: 'on',
+    screenshot: 'on',
+    video: 'on',
+    viewport: { width: 1280, height: 720 },
+    // Enregistrer les actions dans la trace
+    actionTimeout: 10000,
+    navigationTimeout: 30000,
   },
 
   /* Configuration des projets pour différents navigateurs */

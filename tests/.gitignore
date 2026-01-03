@@ -1,0 +1,7 @@
+screenshots/
+*.png
+*.jpg
+*.html
+test-results.json
+playwright-report/
+
