@@ -498,11 +498,21 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
         }));
         
         // Si c'est un message reçu (pas envoyé par l'utilisateur) dans le chat ouvert
-        // Le marquer automatiquement comme lu car l'utilisateur voit le message
+        // Le marquer automatiquement comme lu car l'utilisateur le voit
         if (message.senderId !== currentUser.id) {
           // Marquer ce message comme lu immédiatement car l'utilisateur le voit
-          chatService.markMessagesAsRead(selectedChat.id, currentUser.id).then(() => {
-            // Le compteur sera mis à jour via l'abonnement aux changements
+          chatService.markMessagesAsRead(selectedChat.id, currentUser.id).then(async () => {
+            // Recalculer le compteur immédiatement pour mettre à jour le badge
+            const newUnreadCount = await chatService.getUnreadCount(selectedChat.id, currentUser.id);
+            setUnreadCounts(prev => {
+              const updated = { ...prev, [selectedChat.id]: newUnreadCount };
+              const newTotal = Object.values(updated).reduce((sum, count) => sum + count, 0);
+              setTotalUnreadCount(newTotal);
+              if (onUnreadCountChange) {
+                onUnreadCountChange(newTotal);
+              }
+              return updated;
+            });
           }).catch(error => {
             console.error('Error marking new message as read:', error);
           });
