@@ -143,6 +143,35 @@ const AppContent: React.FC = () => {
             // Initialiser le badge au démarrage
             updateBadgeCount();
             
+            // Mettre à jour l'activité de l'utilisateur pour le statut en ligne
+            const updateUserActivity = async () => {
+              try {
+                console.log('🔄 [App] Updating user activity in loadUser for:', user.id);
+                const { error } = await supabase
+                  .from('users')
+                  .update({ updated_at: new Date().toISOString() })
+                  .eq('id', user.id);
+                
+                if (error) {
+                  console.error('❌ [App] Error updating user activity:', error);
+                } else {
+                  console.log('✅ [App] User activity updated successfully');
+                }
+              } catch (error) {
+                console.error('❌ [App] Error updating user activity:', error);
+              }
+            };
+            
+            // Mettre à jour l'activité IMMÉDIATEMENT au démarrage
+            updateUserActivity();
+            
+            // Mettre à jour l'activité toutes les 2 minutes pour maintenir le statut en ligne
+            const activityInterval = setInterval(() => {
+              if (isMounted && user) {
+                updateUserActivity();
+              }
+            }, 2 * 60 * 1000);
+            
             // Polling de sécurité toutes les 5 secondes pour s'assurer que le badge est à jour
             const badgePollInterval = setInterval(() => {
               if (isMounted && user) {
@@ -150,8 +179,9 @@ const AppContent: React.FC = () => {
               }
             }, 5000);
             
-            // Stocker l'interval pour le nettoyer
-            (chatUnreadSubscriptionRef as any).pollInterval = badgePollInterval;
+            // Stocker les intervals pour les nettoyer
+            (chatUnreadSubscriptionRef.current as any).pollInterval = badgePollInterval;
+            (chatUnreadSubscriptionRef.current as any).activityInterval = activityInterval;
             
             // S'abonner aux notifications aussi
             if (!notificationSubscriptionRef.current) {
@@ -278,16 +308,23 @@ const AppContent: React.FC = () => {
         // Mettre à jour l'activité de l'utilisateur pour le statut en ligne
         const updateUserActivity = async () => {
           try {
-            await supabase
+            console.log('🔄 [App] Updating user activity in onAuthStateChange for:', user.id);
+            const { error } = await supabase
               .from('users')
               .update({ updated_at: new Date().toISOString() })
               .eq('id', user.id);
+            
+            if (error) {
+              console.error('❌ [App] Error updating user activity:', error);
+            } else {
+              console.log('✅ [App] User activity updated successfully');
+            }
           } catch (error) {
-            console.error('Error updating user activity:', error);
+            console.error('❌ [App] Error updating user activity:', error);
           }
         };
         
-        // Mettre à jour l'activité au démarrage et toutes les 2 minutes
+        // Mettre à jour l'activité IMMÉDIATEMENT au démarrage
         updateUserActivity();
         const activityInterval = setInterval(() => {
           if (isMounted && user) {
@@ -349,6 +386,9 @@ const AppContent: React.FC = () => {
       // Nettoyer les intervals
       if ((chatUnreadSubscriptionRef.current as any)?.pollInterval) {
         clearInterval((chatUnreadSubscriptionRef.current as any).pollInterval);
+      }
+      if ((chatUnreadSubscriptionRef.current as any)?.activityInterval) {
+        clearInterval((chatUnreadSubscriptionRef.current as any).activityInterval);
       }
       if ((chatUnreadSubscriptionRef.current as any)?.activityInterval) {
         clearInterval((chatUnreadSubscriptionRef.current as any).activityInterval);
