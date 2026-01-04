@@ -510,12 +510,20 @@ const ChatList: React.FC<ChatListProps> = ({
       scrollToBottom();
     });
 
-    // Subscribe to typing indicators
+    // Subscribe to typing indicators for selected chat
+    // Clean up any previous subscription first
+    if (typingSubscriptionRef.current) {
+      typingSubscriptionRef.current.unsubscribe();
+      typingSubscriptionRef.current = null;
+    }
+    
+    console.log('📝 [ChatList] Subscribing to typing for selected chat:', selectedChat.id);
     typingSubscriptionRef.current = chatService.subscribeToTyping(
       selectedChat.id,
       currentUser.id,
       (typingUserId, isTyping) => {
         if (!isMounted) return;
+        console.log('📝 [ChatList] Typing event for chat', selectedChat.id, ':', typingUserId, isTyping ? 'typing' : 'stopped');
         setTypingUsers(prev => {
           const updated = { ...prev };
           if (isTyping) {
@@ -544,9 +552,17 @@ const ChatList: React.FC<ChatListProps> = ({
 
   // Handle typing
   const handleTyping = useCallback(() => {
-    if (!selectedChat || !currentUser || !typingSubscriptionRef.current) return;
+    if (!selectedChat || !currentUser || !typingSubscriptionRef.current) {
+      console.log('⚠️ [ChatList] Cannot send typing indicator:', { 
+        hasSelectedChat: !!selectedChat, 
+        hasCurrentUser: !!currentUser, 
+        hasSubscription: !!typingSubscriptionRef.current 
+      });
+      return;
+    }
     
     if (typingSubscriptionRef.current.setTyping) {
+      console.log('📝 [ChatList] Sending typing indicator: true');
       typingSubscriptionRef.current.setTyping(true);
     }
     
@@ -556,6 +572,7 @@ const ChatList: React.FC<ChatListProps> = ({
     
     typingTimeoutRef.current = setTimeout(() => {
       if (typingSubscriptionRef.current?.setTyping) {
+        console.log('📝 [ChatList] Sending typing indicator: false');
         typingSubscriptionRef.current.setTyping(false);
       }
     }, 3000);
