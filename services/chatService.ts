@@ -453,18 +453,109 @@ export const chatService = {
     };
   },
 
-  // Subscribe to online status (simplified version - basic implementation)
-  subscribeToOnlineStatus(userIds: string[], callback: (userId: string, isOnline: boolean) => void) {
-    // For now, return a basic implementation
-    // Full presence requires more complex setup in Supabase
-    console.log('📡 [chatService] Online status subscription requested for:', userIds.length, 'users');
+  // Get user online status based on last activity (updated_at from users table)
+  async getUserOnlineStatus(userId: string): Promise<boolean> {
+    try {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('updated_at')
+        .eq('id', userId)
+        .single();
+      
+      if (error || !user) {
+        return false;
+      }
+      
+      // Un utilisateur est considéré en ligne s'il a été actif dans les 5 dernières minutes
+      const lastActivity = new Date(user.updated_at).getTime();
+      const now = Date.now();
+      const fiveMinutesAgo = now - (5 * 60 * 1000);
+      
+      return lastActivity > fiveMinutesAgo;
+    } catch (error) {
+      console.error('Error checking user online status:', error);
+      return false;
+    }
+  },
+
+  // Get online status for multiple users
+  async getUsersOnlineStatus(userIds: string[]): Promise<Record<string, boolean>> {
+    if (userIds.length === 0) return {};
     
-    // Return a mock subscription that tracks online status locally
-    // In a production app, you'd use Supabase Presence or a dedicated presence service
+    try {
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('id, updated_at')
+        .in('id', userIds);
+      
+      if (error || !users) {
+        return {};
+      }
+      
+      const now = Date.now();
+      const fiveMinutesAgo = now - (5 * 60 * 1000);
+      
+      const statusMap: Record<string, boolean> = {};
+      users.forEach(user => {
+        const lastActivity = new Date(user.updated_at).getTime();
+        statusMap[user.id] = lastActivity > fiveMinutesAgo;
+      });
+      
+      return statusMap;
+    } catch (error) {
+      console.error('Error checking users online status:', error);
+      return {};
+    }
+  },
+
+  // Subscribe to online status changes (monitor user updated_at changes)
+  subscribeToOnlineStatus(userIds: string[], callback: (userId: string, isOnline: boolean) => void) {
+    if (userIds.length === 0) {
+      return {
+        channel: null,
+        unsubscribe: () => {},
+      };
+    }
+    
+    console.log('📡 [chatService] Subscribing to online status for:', userIds.length, 'users');
+    
+    const channel = supabase
+      .channel(`online-status:${userIds.join(',')}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=in.(${userIds.join(',')})`,
+        },
+        async (payload) => {
+          try {
+            const user = payload.new as any;
+            if (user && user.updated_at) {
+              const lastActivity = new Date(user.updated_at).getTime();
+              const now = Date.now();
+              const fiveMinutesAgo = now - (5 * 60 * 1000);
+              const isOnline = lastActivity > fiveMinutesAgo;
+              
+              callback(user.id, isOnline);
+            }
+          } catch (error) {
+            console.error('Error in online status callback:', error);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [chatService] Subscribed to online status changes');
+        }
+      });
+    
     return {
-      channel: null,
-      setOnline: async () => {},
-      unsubscribe: () => {},
+      channel,
+      unsubscribe: () => {
+        channel.unsubscribe();
+      },
     };
   },
 

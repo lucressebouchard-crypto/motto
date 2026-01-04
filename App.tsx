@@ -324,10 +324,13 @@ const AppContent: React.FC = () => {
         if ((chatUnreadSubscriptionRef.current as any)?.directMessageSub) {
           (chatUnreadSubscriptionRef.current as any).directMessageSub.unsubscribe();
         }
-        // Nettoyer l'interval de polling
-        if ((chatUnreadSubscriptionRef.current as any)?.pollInterval) {
-          clearInterval((chatUnreadSubscriptionRef.current as any).pollInterval);
-        }
+      // Nettoyer les intervals
+      if ((chatUnreadSubscriptionRef.current as any)?.pollInterval) {
+        clearInterval((chatUnreadSubscriptionRef.current as any).pollInterval);
+      }
+      if ((chatUnreadSubscriptionRef.current as any)?.activityInterval) {
+        clearInterval((chatUnreadSubscriptionRef.current as any).activityInterval);
+      }
         chatUnreadSubscriptionRef.current = null;
       }
       if (authSubscriptionRef.current) {

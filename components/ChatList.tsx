@@ -289,14 +289,10 @@ const ChatList: React.FC<ChatListProps> = ({
     };
   }, [currentUser?.id, selectedChat?.id, scrollToBottom, onUnreadCountChange]);
 
-  // Subscribe to online status for participants (simplified - show all as online for now)
-  // TODO: Implement proper presence system with Supabase Presence API
+  // Subscribe to online status for participants
   useEffect(() => {
     if (!currentUser || chats.length === 0) return;
 
-    // For now, we'll show users as online when they're active
-    // A full implementation would require Supabase Presence configuration
-    // This is a placeholder that assumes all participants are online
     const participantIds = new Set<string>();
     chats.forEach(chat => {
       chat.participants.forEach(id => {
@@ -306,12 +302,57 @@ const ChatList: React.FC<ChatListProps> = ({
       });
     });
 
-    // Mark all as online (simplified implementation)
-    // In production, use Supabase Presence or a dedicated presence service
-    setOnlineUsers(new Set(participantIds));
+    if (participantIds.size === 0) {
+      setOnlineUsers(new Set());
+      return;
+    }
+
+    // Charger le statut en ligne initial
+    const loadOnlineStatus = async () => {
+      try {
+        const statusMap = await chatService.getUsersOnlineStatus(Array.from(participantIds));
+        const onlineSet = new Set<string>();
+        Object.entries(statusMap).forEach(([userId, isOnline]) => {
+          if (isOnline) {
+            onlineSet.add(userId);
+          }
+        });
+        setOnlineUsers(onlineSet);
+      } catch (error) {
+        console.error('Error loading online status:', error);
+        // En cas d'erreur, marquer tous comme hors ligne
+        setOnlineUsers(new Set());
+      }
+    };
+
+    loadOnlineStatus();
+
+    // S'abonner aux changements de statut
+    const onlineSubscription = chatService.subscribeToOnlineStatus(
+      Array.from(participantIds),
+      (userId, isOnline) => {
+        setOnlineUsers(prev => {
+          const updated = new Set(prev);
+          if (isOnline) {
+            updated.add(userId);
+          } else {
+            updated.delete(userId);
+          }
+          return updated;
+        });
+      }
+    );
+
+    // Rafraîchir le statut toutes les 30 secondes
+    const refreshInterval = setInterval(() => {
+      loadOnlineStatus();
+    }, 30000);
 
     return () => {
-      // Cleanup if needed
+      if (onlineSubscription?.unsubscribe) {
+        onlineSubscription.unsubscribe();
+      }
+      clearInterval(refreshInterval);
     };
   }, [currentUser?.id, chats]);
 

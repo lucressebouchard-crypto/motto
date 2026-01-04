@@ -42,6 +42,11 @@ const steps = [
     description: 'Fonction SQL pour compter les messages non lus',
     file: 'supabase/get-unread-count-function.sql',
   },
+  {
+    name: 'User Presence System',
+    description: 'Système de présence basé sur la dernière activité',
+    file: 'supabase/setup-user-presence.sql',
+  },
 ];
 
 let successCount = 0;
