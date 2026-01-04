@@ -42,6 +42,8 @@ const AppContent: React.FC = () => {
   const notificationSubscriptionRef = React.useRef<{ unsubscribe: () => void } | null>(null);
   const chatUnreadSubscriptionRef = React.useRef<any>(null);
   const authSubscriptionRef = React.useRef<{ unsubscribe: () => void } | null>(null);
+  // Cache persistant pour les compteurs de messages non lus
+  const unreadCountsCacheRef = React.useRef<Record<string, number>>({});
 
   // Charger l'utilisateur et les listings depuis Supabase au démarrage
   useEffect(() => {
@@ -95,10 +97,7 @@ const AppContent: React.FC = () => {
               chatUnreadSubscriptionRef.current = null;
             }
             
-            // Cache local pour les compteurs (utiliser useRef pour persister entre rendus)
-            const localUnreadCountsRef = { current: {} as Record<string, number> };
-            
-            // Créer l'abonnement Realtime
+            // Créer l'abonnement Realtime AVANT d'initialiser les compteurs
             console.log('📡 [App] Creating Realtime subscription for user:', user.id);
             const messageSubscription = chatService.subscribeToUnreadCounts(user.id, (chatId, unreadCount) => {
               if (!isMounted) {
@@ -106,11 +105,11 @@ const AppContent: React.FC = () => {
                 return;
               }
               
-              // Mettre à jour le cache local immédiatement
-              localUnreadCountsRef.current[chatId] = unreadCount;
+              // Mettre à jour le cache persistant immédiatement
+              unreadCountsCacheRef.current[chatId] = unreadCount;
               
-              // Calculer le total IMMÉDIATEMENT depuis le cache local
-              const totalCount = Object.values(localUnreadCountsRef.current).reduce((sum, count) => sum + count, 0);
+              // Calculer le total IMMÉDIATEMENT depuis le cache
+              const totalCount = Object.values(unreadCountsCacheRef.current).reduce((sum, count) => sum + count, 0);
               
               console.log('🆕 [App] Unread count changed for chat:', chatId, 'new count:', unreadCount, 'TOTAL:', totalCount);
               
@@ -122,9 +121,9 @@ const AppContent: React.FC = () => {
             });
             
             chatUnreadSubscriptionRef.current = messageSubscription;
-            console.log('✅ [App] Subscription created, ref stored');
+            console.log('✅ [App] Subscription created and stored');
             
-            // Initialiser les compteurs au démarrage
+            // Initialiser les compteurs au démarrage APRÈS avoir créé l'abonnement
             console.log('📊 [App] Initializing unread counts...');
             chatService.getByParticipant(user.id).then(async (chats) => {
               console.log('📋 [App] Found', chats.length, 'chats');
@@ -132,7 +131,8 @@ const AppContent: React.FC = () => {
               for (const chat of chats) {
                 counts[chat.id] = await chatService.getUnreadCount(chat.id, user.id);
               }
-              localUnreadCountsRef.current = counts;
+              // Mettre à jour le cache persistant
+              unreadCountsCacheRef.current = counts;
               const initialTotal = Object.values(counts).reduce((sum, count) => sum + count, 0);
               console.log('📊 [App] Initial total unread count:', initialTotal);
               if (isMounted) {
@@ -227,16 +227,21 @@ const AppContent: React.FC = () => {
 
         // S'abonner aux changements de compteurs de messages en temps réel pour le badge global
         // IMPORTANT: Mise à jour IMMÉDIATE du badge sans attendre le recalcul
-        let localUnreadCounts: Record<string, number> = {};
+        // Nettoyer l'abonnement précédent s'il existe
+        if (chatUnreadSubscriptionRef.current) {
+          chatUnreadSubscriptionRef.current.unsubscribe();
+          chatUnreadSubscriptionRef.current = null;
+        }
         
+        console.log('📡 [App] Creating Realtime subscription in onAuthStateChange for user:', user.id);
         const messageSubscription = chatService.subscribeToUnreadCounts(user.id, (chatId, unreadCount) => {
           if (!isMounted) return;
           
-          // Mettre à jour le cache local immédiatement
-          localUnreadCounts[chatId] = unreadCount;
+          // Mettre à jour le cache persistant immédiatement
+          unreadCountsCacheRef.current[chatId] = unreadCount;
           
-          // Calculer le total IMMÉDIATEMENT depuis le cache local
-          const totalCount = Object.values(localUnreadCounts).reduce((sum, count) => sum + count, 0);
+          // Calculer le total IMMÉDIATEMENT depuis le cache
+          const totalCount = Object.values(unreadCountsCacheRef.current).reduce((sum, count) => sum + count, 0);
           
           console.log('🆕 [App] Unread count changed for chat:', chatId, 'new count:', unreadCount, 'TOTAL:', totalCount);
           
@@ -247,6 +252,7 @@ const AppContent: React.FC = () => {
         });
         
         chatUnreadSubscriptionRef.current = messageSubscription;
+        console.log('✅ [App] Subscription created in onAuthStateChange');
         
         // Initialiser les compteurs au démarrage
         chatService.getByParticipant(user.id).then(async (chats) => {
@@ -254,7 +260,7 @@ const AppContent: React.FC = () => {
           for (const chat of chats) {
             counts[chat.id] = await chatService.getUnreadCount(chat.id, user.id);
           }
-          localUnreadCounts = counts;
+          unreadCountsCacheRef.current = counts;
           const initialTotal = Object.values(counts).reduce((sum, count) => sum + count, 0);
           if (isMounted) {
             setUnreadMessagesCount(initialTotal);
