@@ -151,24 +151,40 @@ const AppContent: React.FC = () => {
         }
 
         // S'abonner aux changements de compteurs de messages en temps réel pour le badge global
-        // S'abonner aux nouveaux messages en temps réel pour mettre à jour immédiatement le badge
-        const messageSubscription = chatService.subscribeToUnreadCounts(user.id, async (chatId, unreadCount) => {
+        // IMPORTANT: Mise à jour IMMÉDIATE du badge sans attendre le recalcul
+        let localUnreadCounts: Record<string, number> = {};
+        
+        const messageSubscription = chatService.subscribeToUnreadCounts(user.id, (chatId, unreadCount) => {
           if (!isMounted) return;
           
-          try {
-            // Recalculer le compteur total immédiatement
-            const totalCount = await chatService.getTotalUnreadCount(user.id);
-            console.log('🆕 [App] New message received, updating badge to:', totalCount);
-            
-            if (isMounted) {
-              setUnreadMessagesCount(totalCount);
-            }
-          } catch (error) {
-            console.error('❌ [App] Error updating unread count:', error);
+          // Mettre à jour le cache local immédiatement
+          localUnreadCounts[chatId] = unreadCount;
+          
+          // Calculer le total IMMÉDIATEMENT depuis le cache local
+          const totalCount = Object.values(localUnreadCounts).reduce((sum, count) => sum + count, 0);
+          
+          console.log('🆕 [App] Unread count changed for chat:', chatId, 'new count:', unreadCount, 'TOTAL:', totalCount);
+          
+          // Mettre à jour l'état IMMÉDIATEMENT
+          if (isMounted) {
+            setUnreadMessagesCount(totalCount);
           }
         });
         
         chatUnreadSubscriptionRef.current = messageSubscription;
+        
+        // Initialiser les compteurs au démarrage
+        chatService.getByParticipant(user.id).then(async (chats) => {
+          const counts: Record<string, number> = {};
+          for (const chat of chats) {
+            counts[chat.id] = await chatService.getUnreadCount(chat.id, user.id);
+          }
+          localUnreadCounts = counts;
+          const initialTotal = Object.values(counts).reduce((sum, count) => sum + count, 0);
+          if (isMounted) {
+            setUnreadMessagesCount(initialTotal);
+          }
+        });
 
         // S'abonner aux nouvelles notifications
         const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {

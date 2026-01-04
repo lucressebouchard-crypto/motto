@@ -468,13 +468,16 @@ export const chatService = {
     };
   },
 
-  // Subscribe to unread count changes (improved version)
+  // Subscribe to unread count changes (improved version with immediate updates)
   subscribeToUnreadCounts(userId: string, callback: (chatId: string, unreadCount: number) => void) {
     console.log('📊 [chatService] Subscribing to unread counts for user:', userId);
     
+    // Track unread counts locally for immediate updates
+    const unreadCountsCache: Record<string, number> = {};
+    
     const channel = supabase
       .channel(`unread-counts:${userId}`)
-      // Listen for new messages
+      // Listen for new messages - CRITICAL: This must fire immediately
       .on(
         'postgres_changes',
         {
@@ -497,8 +500,23 @@ export const chatService = {
             if (chat && chat.participant_ids?.includes(userId)) {
               // Only count if message is not from user
               if (message.sender_id !== userId) {
-                const unreadCount = await this.getUnreadCount(chatId, userId);
-                callback(chatId, unreadCount);
+                // Update cache immediately for instant badge update
+                const currentCount = unreadCountsCache[chatId] || 0;
+                unreadCountsCache[chatId] = currentCount + 1;
+                
+                // Callback immediately with new count
+                console.log('🆕 [chatService] New message detected, updating count immediately for chat:', chatId, 'new count:', unreadCountsCache[chatId]);
+                callback(chatId, unreadCountsCache[chatId]);
+                
+                // Then verify with actual count (async, non-blocking)
+                this.getUnreadCount(chatId, userId).then(actualCount => {
+                  if (actualCount !== unreadCountsCache[chatId]) {
+                    unreadCountsCache[chatId] = actualCount;
+                    callback(chatId, actualCount);
+                  }
+                }).catch(() => {
+                  // If verification fails, keep the optimistic count
+                });
               }
             }
           } catch (error) {
@@ -527,7 +545,16 @@ export const chatService = {
               .single();
 
             if (message) {
+              // Update cache optimistically
+              const currentCount = unreadCountsCache[message.chat_id] || 0;
+              if (currentCount > 0) {
+                unreadCountsCache[message.chat_id] = currentCount - 1;
+                callback(message.chat_id, unreadCountsCache[message.chat_id]);
+              }
+              
+              // Verify with actual count
               const unreadCount = await this.getUnreadCount(message.chat_id, userId);
+              unreadCountsCache[message.chat_id] = unreadCount;
               callback(message.chat_id, unreadCount);
             }
           } catch (error) {
@@ -538,6 +565,16 @@ export const chatService = {
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('✅ [chatService] Subscribed to unread count changes');
+          // Initialize cache by loading current counts
+          this.getByParticipant(userId).then(chats => {
+            chats.forEach(chat => {
+              this.getUnreadCount(chat.id, userId).then(count => {
+                unreadCountsCache[chat.id] = count;
+              });
+            });
+          });
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ [chatService] Channel error for unread counts');
         }
       });
     
