@@ -69,6 +69,7 @@ export interface Quote {
 
 export interface Message {
   id: string;
+  chatId?: string;
   senderId: string;
   text: string;
   timestamp: number;
@@ -85,6 +86,7 @@ export interface Chat {
   unreadCount?: number;
   lastMessage?: Message;
   lastMessageAt?: number;
+  createdAt?: number;
 }
 
 export interface Notification {

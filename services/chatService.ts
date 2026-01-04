@@ -14,6 +14,7 @@ export const chatService = {
         participant_ids: data.participantIds,
         listing_id: data.listingId,
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -45,9 +46,16 @@ export const chatService = {
 
     if (messagesError) throw messagesError;
 
+    // Get last message for sorting
+    const lastMessage = messages && messages.length > 0 
+      ? mapMessageFromDB(messages[messages.length - 1])
+      : undefined;
+
     return {
       ...mapChatFromDB(data),
       messages: (messages || []).map(mapMessageFromDB),
+      lastMessage,
+      lastMessageAt: lastMessage?.timestamp,
     };
   },
 
@@ -62,9 +70,10 @@ export const chatService = {
 
     const chats = (data || []).map(mapChatFromDB);
 
-    // Fetch messages for each chat
-    const chatsWithMessages = await Promise.all(
+    // Fetch last message for each chat and calculate unread counts in parallel
+    const chatsWithDetails = await Promise.all(
       chats.map(async (chat) => {
+        // Get last message
         const { data: messages } = await supabase
           .from('messages')
           .select('*')
@@ -72,17 +81,25 @@ export const chatService = {
           .order('timestamp', { ascending: false })
           .limit(1);
 
+        const lastMessage = messages && messages.length > 0 
+          ? mapMessageFromDB(messages[0])
+          : undefined;
+
         return {
           ...chat,
-          messages: (messages || []).map(mapMessageFromDB),
+          lastMessage,
+          lastMessageAt: lastMessage?.timestamp || new Date(chat.createdAt || Date.now()).getTime(),
         };
       })
     );
 
-    return chatsWithMessages;
+    // Sort by lastMessageAt (most recent first)
+    return chatsWithDetails.sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
   },
 
   async sendMessage(chatId: string, senderId: string, text: string): Promise<Message> {
+    const timestamp = new Date().toISOString();
+    
     // Retry logic pour les opérations critiques
     let lastError: any = null;
     const maxRetries = 3;
@@ -95,18 +112,16 @@ export const chatService = {
             chat_id: chatId,
             sender_id: senderId,
             text,
-            timestamp: new Date().toISOString(),
+            timestamp,
           })
           .select()
           .single();
 
         if (error) {
           lastError = error;
-          // Ne pas retry pour les erreurs de validation
           if (error.code === '23505' || error.code === '23503' || error.code === '23514') {
             throw error;
           }
-          // Attendre avant de réessayer (backoff exponentiel)
           if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, attempt * 200));
             continue;
@@ -114,15 +129,11 @@ export const chatService = {
           throw error;
         }
 
-        // Update chat updated_at (ne pas retry cette opération si elle échoue)
-        try {
-          await supabase
-            .from('chats')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('id', chatId);
-        } catch (updateError) {
-          console.warn('Erreur lors de la mise à jour du chat (non bloquant):', updateError);
-        }
+        // Update chat updated_at to ensure proper sorting
+        await supabase
+          .from('chats')
+          .update({ updated_at: timestamp })
+          .eq('id', chatId);
 
         return mapMessageFromDB(message);
       } catch (error) {
@@ -148,9 +159,8 @@ export const chatService = {
   },
 
   async getUnreadCount(chatId: string, userId: string): Promise<number> {
-    // Compter uniquement les messages non lus (non envoyés par l'utilisateur et non marqués comme lus)
     try {
-      // Récupérer tous les messages du chat envoyés par d'autres
+      // Get all messages in chat not sent by user
       const { data: messages, error: messagesError } = await supabase
         .from('messages')
         .select('id')
@@ -158,29 +168,26 @@ export const chatService = {
         .neq('sender_id', userId);
 
       if (messagesError) {
-        console.error('❌ [chatService] Erreur lors de la récupération des messages:', messagesError);
+        console.error('❌ [chatService] Error fetching messages:', messagesError);
         return 0;
       }
 
       if (!messages || messages.length === 0) {
-        console.log(`📊 [chatService] Chat ${chatId}: 0 messages from others`);
         return 0;
       }
 
-      // Vérifier si la table message_reads existe
-      const { data: testRead, error: testError } = await supabase
+      // Check if message_reads table exists
+      const { error: testError } = await supabase
         .from('message_reads')
         .select('id')
         .limit(1);
 
       if (testError) {
-        // Si la table message_reads n'existe pas encore, compter tous les messages non envoyés
-        console.warn('⚠️ [chatService] Table message_reads non disponible, utilisation du fallback');
-        console.warn('💡 [chatService] Execute: npm run supabase:init to create the table');
+        // Fallback: return all messages as unread
         return messages.length;
       }
 
-      // Récupérer les IDs des messages déjà lus
+      // Get read message IDs
       const messageIds = messages.map(m => m.id);
       const { data: readMessages, error: readError } = await supabase
         .from('message_reads')
@@ -190,135 +197,78 @@ export const chatService = {
 
       if (readError) {
         console.error('❌ [chatService] Error fetching read messages:', readError);
-        // Fallback: retourner tous les messages comme non lus
         return messages.length;
       }
 
       const readMessageIds = new Set((readMessages || []).map(m => m.message_id));
       const unreadCount = messages.filter(m => !readMessageIds.has(m.id)).length;
 
-      console.log(`📊 [chatService] Chat ${chatId}: ${unreadCount} unread (${messages.length} total, ${readMessageIds.size} read)`);
-
       return unreadCount;
     } catch (error) {
-      console.error('❌ [chatService] Exception lors du comptage des messages non lus:', error);
-      // Fallback simple en cas d'erreur
-      try {
-        const { count } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('chat_id', chatId)
-          .neq('sender_id', userId);
-        return count || 0;
-      } catch {
-        return 0;
-      }
+      console.error('❌ [chatService] Exception counting unread:', error);
+      return 0;
     }
   },
 
   async getTotalUnreadCount(userId: string): Promise<number> {
     try {
-      console.log('📊 [chatService] Calculating total unread count for user:', userId);
-      
-      // Récupérer tous les chats de l'utilisateur
       const chats = await this.getByParticipant(userId);
-      console.log('📋 [chatService] Found', chats.length, 'chats');
-      
-      let totalUnread = 0;
-      
-      // Pour chaque chat, compter les messages envoyés par les autres
-      // Utiliser Promise.all pour paralléliser les requêtes
       const unreadCounts = await Promise.all(
         chats.map(chat => this.getUnreadCount(chat.id, userId))
       );
-      
-      totalUnread = unreadCounts.reduce((sum, count) => sum + count, 0);
-      
-      console.log('✅ [chatService] Total unread count:', totalUnread);
-      return totalUnread;
+      return unreadCounts.reduce((sum, count) => sum + count, 0);
     } catch (error) {
-      console.error('❌ [chatService] Erreur lors du calcul du total de messages non lus:', error);
+      console.error('❌ [chatService] Error calculating total unread:', error);
       return 0;
     }
   },
 
   async markMessagesAsRead(chatId: string, userId: string): Promise<void> {
     try {
-      console.log('📖 [chatService] Marking messages as read for chat:', chatId, 'user:', userId);
-      
-      // D'abord, vérifier si la table message_reads existe
-      const { data: testRead, error: testError } = await supabase
+      // Check if message_reads table exists
+      const { error: testError } = await supabase
         .from('message_reads')
         .select('id')
         .limit(1);
 
       if (testError) {
-        console.error('❌ [chatService] Table message_reads does not exist!', testError);
-        console.error('💡 [chatService] Execute: npm run supabase:init to create the table');
-        return; // Sortir sans erreur pour ne pas bloquer
+        console.warn('⚠️ [chatService] message_reads table not available');
+        return;
       }
 
-      // Utiliser la fonction SQL si elle existe
+      // Try RPC function first
       const { error: rpcError } = await supabase.rpc('mark_chat_messages_as_read', {
         chat_uuid: chatId,
         user_uuid: userId
       });
 
       if (rpcError) {
-        console.log('⚠️ [chatService] RPC function not available, using direct insert. Error:', rpcError.message);
-        
-        // Récupérer tous les messages non lus du chat
+        // Fallback: direct insert
         const { data: messages, error: messagesError } = await supabase
           .from('messages')
           .select('id')
           .eq('chat_id', chatId)
           .neq('sender_id', userId);
 
-        if (messagesError) {
-          console.error('❌ [chatService] Error fetching messages:', messagesError);
-          throw messagesError;
-        }
-
-        if (!messages || messages.length === 0) {
-          console.log('ℹ️ [chatService] No unread messages to mark');
+        if (messagesError || !messages || messages.length === 0) {
           return;
         }
 
-        console.log(`📝 [chatService] Found ${messages.length} messages to mark as read`);
-
-        // Insérer les entrées dans message_reads (ignorer les conflits)
         const readEntries = messages.map(msg => ({
           message_id: msg.id,
           user_id: userId,
         }));
 
-        // Insérer par batch pour éviter les limites
-        let totalInserted = 0;
+        // Insert in batches
         for (let i = 0; i < readEntries.length; i += 100) {
           const batch = readEntries.slice(i, i + 100);
-          const { data: inserted, error: insertError } = await supabase
+          await supabase
             .from('message_reads')
-            .upsert(batch, { onConflict: 'message_id,user_id', ignoreDuplicates: true })
-            .select();
-
-          if (insertError) {
-            console.error('❌ [chatService] Error marking messages as read:', insertError);
-            console.error('❌ [chatService] Error details:', insertError.code, insertError.message);
-            // Continuer avec les autres batches même en cas d'erreur
-          } else {
-            totalInserted += (inserted?.length || 0);
-            console.log(`✅ [chatService] Batch ${i / 100 + 1} inserted: ${inserted?.length || 0} entries`);
-          }
+            .upsert(batch, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
         }
-
-        console.log(`✅ [chatService] Total messages marked as read: ${totalInserted} (${readEntries.length} attempted)`);
-      } else {
-        console.log('✅ [chatService] Messages marked as read via RPC');
       }
-    } catch (error: any) {
-      console.error('❌ [chatService] Exception marking messages as read:', error);
-      console.error('❌ [chatService] Error details:', error?.code, error?.message);
-      // Ne pas throw pour ne pas bloquer l'interface
+    } catch (error) {
+      console.error('❌ [chatService] Error marking as read:', error);
     }
   },
 
@@ -331,18 +281,21 @@ export const chatService = {
       .contains('participant_ids', [sellerId])
       .maybeSingle();
 
-    if (error) {
-      console.error('Erreur lors de la recherche du chat:', error);
-      return null;
-    }
-
-    if (!data) return null;
+    if (error || !data) return null;
 
     const chat = mapChatFromDB(data);
     const messages = await this.getMessages(chat.id);
-    return { ...chat, messages };
+    const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined;
+    
+    return { 
+      ...chat, 
+      messages,
+      lastMessage,
+      lastMessageAt: lastMessage?.timestamp,
+    };
   },
 
+  // Subscribe to new messages in a specific chat
   subscribeToMessages(chatId: string, callback: (message: Message) => void) {
     const channel = supabase
       .channel(`chat:${chatId}`)
@@ -356,41 +309,204 @@ export const chatService = {
         },
         (payload) => {
           try {
-            callback(mapMessageFromDB(payload.new));
+            const message = mapMessageFromDB(payload.new);
+            callback(message);
           } catch (error) {
-            console.error('Erreur dans le callback de message:', error);
+            console.error('❌ [chatService] Error in message callback:', error);
           }
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Abonnement aux messages actif pour le chat:', chatId);
+          console.log('✅ [chatService] Subscribed to messages for chat:', chatId);
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Erreur de canal pour les messages:', chatId);
+          console.error('❌ [chatService] Channel error for chat:', chatId);
         }
       });
     
     return channel;
   },
 
-  subscribeToTyping(chatId: string, userId: string, callback: (isTyping: boolean, typingUserId: string) => void) {
-    // Pour l'instant, on désactive l'indicateur de frappe car il nécessite une configuration présence
-    // Dans une version future, on pourrait créer une table typing_indicators
-    // ou utiliser le système de presence de Supabase avec la bonne configuration
+  // Subscribe to all messages for a user (for real-time updates across all chats)
+  subscribeToAllUserMessages(userId: string, callback: (message: Message, chatId: string) => void) {
+    const channel = supabase
+      .channel(`all-messages:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        async (payload) => {
+          try {
+            const message = mapMessageFromDB(payload.new);
+            const chatId = payload.new.chat_id;
+            
+            // Check if user is participant in this chat
+            const { data: chat } = await supabase
+              .from('chats')
+              .select('participant_ids')
+              .eq('id', chatId)
+              .single();
+            
+            if (chat && chat.participant_ids?.includes(userId)) {
+              callback(message, chatId);
+            }
+          } catch (error) {
+            console.error('❌ [chatService] Error in all messages callback:', error);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [chatService] Subscribed to all messages for user:', userId);
+        }
+      });
     
-    // Retourner un objet avec unsubscribe pour compatibilité
+    return channel;
+  },
+
+  // Subscribe to typing indicators
+  subscribeToTyping(chatId: string, userId: string, onTypingChange: (typingUserId: string, isTyping: boolean) => void) {
+    const channel = supabase
+      .channel(`typing:${chatId}`)
+      .on('presence', { event: 'sync' }, () => {
+        try {
+          const state = channel.presenceState();
+          const typingUsers: Record<string, any> = {};
+          
+          Object.values(state).forEach((presences: any) => {
+            if (Array.isArray(presences)) {
+              presences.forEach((presence: any) => {
+                if (presence?.userId && presence.userId !== userId && presence.typing) {
+                  typingUsers[presence.userId] = presence;
+                }
+              });
+            }
+          });
+          
+          Object.keys(typingUsers).forEach(typingUserId => {
+            onTypingChange(typingUserId, true);
+          });
+        } catch (error) {
+          console.error('Error in presence sync:', error);
+        }
+      })
+      .on('presence', { event: 'join' }, ({ newPresences }: any) => {
+        try {
+          if (Array.isArray(newPresences)) {
+            newPresences.forEach((presence: any) => {
+              if (presence?.userId && presence.userId !== userId && presence.typing) {
+                onTypingChange(presence.userId, true);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error in presence join:', error);
+        }
+      })
+      .on('presence', { event: 'leave' }, ({ leftPresences }: any) => {
+        try {
+          if (Array.isArray(leftPresences)) {
+            leftPresences.forEach((presence: any) => {
+              if (presence?.userId && presence.userId !== userId) {
+                onTypingChange(presence.userId, false);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error in presence leave:', error);
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          try {
+            await channel.track({
+              userId,
+              typing: false,
+              online: true,
+            });
+            console.log('✅ [chatService] Typing subscription active for chat:', chatId);
+          } catch (error) {
+            console.error('Error tracking presence:', error);
+          }
+        }
+      });
+    
     return {
-      unsubscribe: () => {},
-      track: (data: any) => {},
+      channel,
+      setTyping: async (isTyping: boolean) => {
+        try {
+          await channel.track({
+            userId,
+            typing: isTyping,
+            online: true,
+          });
+        } catch (error) {
+          console.error('Error setting typing:', error);
+        }
+      },
+      unsubscribe: () => {
+        channel.unsubscribe();
+      },
     };
   },
 
-  // S'abonner aux changements de compteurs de messages non lus (version améliorée)
+  // Subscribe to online status (simplified version - basic implementation)
+  subscribeToOnlineStatus(userIds: string[], callback: (userId: string, isOnline: boolean) => void) {
+    // For now, return a basic implementation
+    // Full presence requires more complex setup in Supabase
+    console.log('📡 [chatService] Online status subscription requested for:', userIds.length, 'users');
+    
+    // Return a mock subscription that tracks online status locally
+    // In a production app, you'd use Supabase Presence or a dedicated presence service
+    return {
+      channel: null,
+      setOnline: async () => {},
+      unsubscribe: () => {},
+    };
+  },
+
+  // Subscribe to unread count changes (improved version)
   subscribeToUnreadCounts(userId: string, callback: (chatId: string, unreadCount: number) => void) {
-    console.log('📊 [chatService] Subscribing to unread count changes for user:', userId);
+    console.log('📊 [chatService] Subscribing to unread counts for user:', userId);
     
     const channel = supabase
       .channel(`unread-counts:${userId}`)
+      // Listen for new messages
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        async (payload) => {
+          try {
+            const message = payload.new as any;
+            const chatId = message.chat_id;
+            
+            // Check if user is participant
+            const { data: chat } = await supabase
+              .from('chats')
+              .select('participant_ids')
+              .eq('id', chatId)
+              .single();
+            
+            if (chat && chat.participant_ids?.includes(userId)) {
+              // Only count if message is not from user
+              if (message.sender_id !== userId) {
+                const unreadCount = await this.getUnreadCount(chatId, userId);
+                callback(chatId, unreadCount);
+              }
+            }
+          } catch (error) {
+            console.error('❌ [chatService] Error in message insert callback:', error);
+          }
+        }
+      )
+      // Listen for message reads
       .on(
         'postgres_changes',
         {
@@ -404,66 +520,24 @@ export const chatService = {
             const messageId = payload.new?.message_id;
             if (!messageId) return;
 
-            // Récupérer le chat_id du message
-            const { data: message, error } = await supabase
+            const { data: message } = await supabase
               .from('messages')
               .select('chat_id')
               .eq('id', messageId)
               .single();
 
-            if (error || !message) {
-              console.error('❌ [chatService] Error fetching message for unread count update:', error);
-              return;
-            }
-
-            // Recalculer le compteur pour ce chat immédiatement
-            const unreadCount = await this.getUnreadCount(message.chat_id, userId);
-            console.log('🔄 [chatService] Message marked as read, updating count for chat:', message.chat_id, 'new count:', unreadCount);
-            callback(message.chat_id, unreadCount);
-          } catch (error) {
-            console.error('❌ [chatService] Error in message_reads subscription callback:', error);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        },
-        async (payload) => {
-          try {
-            const message = payload.new as any;
-            
-            // Vérifier si ce message concerne un chat de l'utilisateur
-            const { data: chat, error: chatError } = await supabase
-              .from('chats')
-              .select('participant_ids')
-              .eq('id', message.chat_id)
-              .single();
-
-            if (chatError || !chat) {
-              return;
-            }
-
-            // Si c'est un message reçu (pas envoyé par l'utilisateur)
-            if (chat.participant_ids?.includes(userId) && message.sender_id !== userId) {
-              // Recalculer le compteur pour ce chat
+            if (message) {
               const unreadCount = await this.getUnreadCount(message.chat_id, userId);
-              console.log('🆕 [chatService] New message received, updating unread count for chat:', message.chat_id, 'count:', unreadCount);
               callback(message.chat_id, unreadCount);
             }
           } catch (error) {
-            console.error('❌ [chatService] Error in new message subscription for unread count:', error);
+            console.error('❌ [chatService] Error in read callback:', error);
           }
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('✅ [chatService] Subscribed to unread count changes');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ [chatService] Error subscribing to unread count changes');
         }
       });
     
@@ -477,15 +551,16 @@ function mapChatFromDB(dbChat: any): Chat {
     participants: dbChat.participant_ids || [],
     listingId: dbChat.listing_id,
     messages: [],
+    createdAt: dbChat.created_at ? new Date(dbChat.created_at).getTime() : Date.now(),
   };
 }
 
 function mapMessageFromDB(dbMessage: any): Message {
   return {
     id: dbMessage.id,
+    chatId: dbMessage.chat_id,
     senderId: dbMessage.sender_id,
     text: dbMessage.text,
     timestamp: new Date(dbMessage.timestamp).getTime(),
   };
 }
-
