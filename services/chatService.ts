@@ -575,7 +575,8 @@ export const chatService = {
         console.log('📡 [chatService] Subscription status changed:', status);
         
         if (status === 'SUBSCRIBED') {
-          console.log('✅ [chatService] Successfully subscribed to unread count changes');
+          console.log('✅ [chatService] Successfully subscribed to unread count changes - Realtime is ACTIVE');
+          console.log('🎯 [chatService] Ready to receive real-time message updates');
           // Initialize cache by loading current counts
           this.getByParticipant(userId).then(chats => {
             console.log('📋 [chatService] Initializing cache for', chats.length, 'chats');
@@ -587,11 +588,14 @@ export const chatService = {
             });
           });
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ [chatService] Channel error for unread counts');
+          console.error('❌ [chatService] Channel error for unread counts - Realtime NOT working');
+          console.error('💡 [chatService] Check Supabase Realtime configuration');
         } else if (status === 'TIMED_OUT') {
-          console.error('❌ [chatService] Channel timed out');
+          console.error('❌ [chatService] Channel timed out - Realtime connection failed');
         } else if (status === 'CLOSED') {
           console.warn('⚠️ [chatService] Channel closed');
+        } else {
+          console.log('ℹ️ [chatService] Subscription status:', status);
         }
       });
     
