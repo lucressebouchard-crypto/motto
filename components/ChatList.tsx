@@ -46,6 +46,7 @@ const ChatList: React.FC<ChatListProps> = ({
   const messageSubscriptionRef = useRef<any>(null);
   const allMessagesSubscriptionRef = useRef<any>(null);
   const typingSubscriptionRef = useRef<any>(null);
+  const allChatsTypingSubscriptionRef = useRef<any>(null);
   const onlineSubscriptionRef = useRef<any>(null);
   const unreadCountSubscriptionRef = useRef<any>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -355,6 +356,48 @@ const ChatList: React.FC<ChatListProps> = ({
       clearInterval(refreshInterval);
     };
   }, [currentUser?.id, chats]);
+
+  // Subscribe to typing indicators for all chats in the list
+  useEffect(() => {
+    if (!currentUser || chats.length === 0) {
+      if (allChatsTypingSubscriptionRef.current) {
+        allChatsTypingSubscriptionRef.current.unsubscribe();
+        allChatsTypingSubscriptionRef.current = null;
+      }
+      return;
+    }
+
+    const chatIds = chats.map(chat => chat.id);
+
+    // Unsubscribe from previous subscriptions
+    if (allChatsTypingSubscriptionRef.current) {
+      allChatsTypingSubscriptionRef.current.unsubscribe();
+    }
+
+    // Subscribe to typing indicators for all chats
+    allChatsTypingSubscriptionRef.current = chatService.subscribeToAllChatsTyping(
+      chatIds,
+      currentUser.id,
+      (chatId, typingUserId, isTyping) => {
+        setTypingUsers(prev => {
+          const updated = { ...prev };
+          if (isTyping) {
+            updated[chatId] = typingUserId;
+          } else {
+            delete updated[chatId];
+          }
+          return updated;
+        });
+      }
+    );
+
+    return () => {
+      if (allChatsTypingSubscriptionRef.current) {
+        allChatsTypingSubscriptionRef.current.unsubscribe();
+        allChatsTypingSubscriptionRef.current = null;
+      }
+    };
+  }, [currentUser?.id, chats.map(c => c.id).join(',')]);
 
   // Open specific chat if selectedChatId is set
   useEffect(() => {
@@ -964,11 +1007,17 @@ const ChatList: React.FC<ChatListProps> = ({
                         </div>
                       </div>
                     )}
-                    {lastMessage && (
+                    {typingUsers[chat.id] ? (
+                      <p className="text-xs truncate text-indigo-600 font-medium italic">
+                        {typingUsers[chat.id] === otherParticipant?.id 
+                          ? `${otherParticipant.name} est en train d'écrire...`
+                          : 'En train d\'écrire...'}
+                      </p>
+                    ) : lastMessage ? (
                       <p className={`text-xs truncate ${unreadCount > 0 ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
                         {lastMessage.text}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               );

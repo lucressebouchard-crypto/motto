@@ -465,6 +465,31 @@ export const chatService = {
     };
   },
 
+  // Subscribe to typing indicators for multiple chats (for chat list)
+  subscribeToAllChatsTyping(chatIds: string[], userId: string, onTypingChange: (chatId: string, typingUserId: string, isTyping: boolean) => void) {
+    console.log('📝 [chatService] Subscribing to typing for', chatIds.length, 'chats');
+    
+    const subscriptions: Array<{ chatId: string; subscription: any }> = [];
+    
+    chatIds.forEach(chatId => {
+      const subscription = this.subscribeToTyping(chatId, userId, (typingUserId, isTyping) => {
+        onTypingChange(chatId, typingUserId, isTyping);
+      });
+      subscriptions.push({ chatId, subscription });
+    });
+    
+    return {
+      subscriptions,
+      unsubscribe: () => {
+        subscriptions.forEach(({ subscription }) => {
+          if (subscription?.unsubscribe) {
+            subscription.unsubscribe();
+          }
+        });
+      },
+    };
+  },
+
   // Get user online status based on last activity (updated_at from users table)
   async getUserOnlineStatus(userId: string): Promise<boolean> {
     try {
