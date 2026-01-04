@@ -317,7 +317,17 @@ const AppContent: React.FC = () => {
         notificationSubscriptionRef.current = null;
       }
       if (chatUnreadSubscriptionRef.current) {
-        chatUnreadSubscriptionRef.current.unsubscribe();
+        if (typeof chatUnreadSubscriptionRef.current.unsubscribe === 'function') {
+          chatUnreadSubscriptionRef.current.unsubscribe();
+        }
+        // Nettoyer aussi la subscription directe aux messages
+        if ((chatUnreadSubscriptionRef.current as any)?.directMessageSub) {
+          (chatUnreadSubscriptionRef.current as any).directMessageSub.unsubscribe();
+        }
+        // Nettoyer l'interval de polling
+        if ((chatUnreadSubscriptionRef.current as any)?.pollInterval) {
+          clearInterval((chatUnreadSubscriptionRef.current as any).pollInterval);
+        }
         chatUnreadSubscriptionRef.current = null;
       }
       if (authSubscriptionRef.current) {
