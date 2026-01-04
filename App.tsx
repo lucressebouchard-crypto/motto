@@ -80,11 +80,70 @@ const AppContent: React.FC = () => {
             console.error('Erreur lors du chargement des notifications:', error);
           }
           
-          // Charger le compteur de messages
+          // Charger le compteur de messages et initialiser l'abonnement Realtime
           try {
             const msgCount = await chatService.getTotalUnreadCount(user.id);
             if (isMounted) {
               setUnreadMessagesCount(msgCount);
+            }
+            
+            // IMPORTANT: Initialiser l'abonnement Realtime dès le chargement initial
+            // Nettoyer l'abonnement précédent s'il existe
+            if (chatUnreadSubscriptionRef.current) {
+              chatUnreadSubscriptionRef.current.unsubscribe();
+              chatUnreadSubscriptionRef.current = null;
+            }
+            
+            // Cache local pour les compteurs
+            let localUnreadCounts: Record<string, number> = {};
+            
+            // Créer l'abonnement Realtime
+            const messageSubscription = chatService.subscribeToUnreadCounts(user.id, (chatId, unreadCount) => {
+              if (!isMounted) return;
+              
+              // Mettre à jour le cache local immédiatement
+              localUnreadCounts[chatId] = unreadCount;
+              
+              // Calculer le total IMMÉDIATEMENT depuis le cache local
+              const totalCount = Object.values(localUnreadCounts).reduce((sum, count) => sum + count, 0);
+              
+              console.log('🆕 [App] Unread count changed for chat:', chatId, 'new count:', unreadCount, 'TOTAL:', totalCount);
+              
+              // Mettre à jour l'état IMMÉDIATEMENT
+              if (isMounted) {
+                setUnreadMessagesCount(totalCount);
+              }
+            });
+            
+            chatUnreadSubscriptionRef.current = messageSubscription;
+            
+            // Initialiser les compteurs au démarrage
+            chatService.getByParticipant(user.id).then(async (chats) => {
+              const counts: Record<string, number> = {};
+              for (const chat of chats) {
+                counts[chat.id] = await chatService.getUnreadCount(chat.id, user.id);
+              }
+              localUnreadCounts = counts;
+              const initialTotal = Object.values(counts).reduce((sum, count) => sum + count, 0);
+              if (isMounted) {
+                setUnreadMessagesCount(initialTotal);
+              }
+            });
+            
+            // S'abonner aux notifications aussi
+            if (!notificationSubscriptionRef.current) {
+              const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {
+                if (!isMounted) return;
+                try {
+                  const count = await notificationService.getUnreadCount(user.id);
+                  if (isMounted) {
+                    setUnreadNotificationsCount(count);
+                  }
+                } catch (error) {
+                  console.error('Erreur lors de la mise à jour du compteur de notifications:', error);
+                }
+              });
+              notificationSubscriptionRef.current = notifSubscription;
             }
           } catch (error) {
             console.error('Erreur lors du chargement des messages:', error);
@@ -111,10 +170,14 @@ const AppContent: React.FC = () => {
     const { data: { subscription } } = authService.onAuthStateChange(async (user) => {
       if (!isMounted) return;
 
-      // Nettoyer l'abonnement aux notifications précédent
+      // Nettoyer les abonnements précédents
       if (notificationSubscriptionRef.current) {
         notificationSubscriptionRef.current.unsubscribe();
         notificationSubscriptionRef.current = null;
+      }
+      if (chatUnreadSubscriptionRef.current) {
+        chatUnreadSubscriptionRef.current.unsubscribe();
+        chatUnreadSubscriptionRef.current = null;
       }
 
       setCurrentUser(user);
