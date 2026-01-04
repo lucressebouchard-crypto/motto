@@ -472,11 +472,8 @@ export const chatService = {
   subscribeToUnreadCounts(userId: string, callback: (chatId: string, unreadCount: number) => void) {
     console.log('📊 [chatService] Subscribing to unread counts for user:', userId);
     
-    // Track unread counts locally for immediate updates
-    const unreadCountsCache: Record<string, number> = {};
-    
     const channel = supabase
-      .channel(`unread-counts:${userId}`)
+      .channel(`unread-counts:${userId}-${Date.now()}`)
       // Listen for new messages - CRITICAL: This must fire immediately
       .on(
         'postgres_changes',
@@ -504,24 +501,10 @@ export const chatService = {
               console.log('✅ [chatService] User is participant in chat');
               // Only count if message is not from user
               if (message.sender_id !== userId) {
-                // Update cache immediately for instant badge update
-                const currentCount = unreadCountsCache[chatId] || 0;
-                unreadCountsCache[chatId] = currentCount + 1;
-                
-                // Callback immediately with new count
-                console.log('🆕 [chatService] New message detected, updating count immediately for chat:', chatId, 'old count:', currentCount, 'new count:', unreadCountsCache[chatId]);
-                callback(chatId, unreadCountsCache[chatId]);
-                
-                // Then verify with actual count (async, non-blocking)
-                this.getUnreadCount(chatId, userId).then(actualCount => {
-                  console.log('✅ [chatService] Verified count for chat', chatId, 'actual:', actualCount, 'cached:', unreadCountsCache[chatId]);
-                  if (actualCount !== unreadCountsCache[chatId]) {
-                    unreadCountsCache[chatId] = actualCount;
-                    callback(chatId, actualCount);
-                  }
-                }).catch((err) => {
-                  console.error('❌ [chatService] Error verifying count:', err);
-                });
+                // Get actual count immediately and callback
+                const actualCount = await this.getUnreadCount(chatId, userId);
+                console.log('🆕 [chatService] New message detected, actual unread count for chat:', chatId, 'is:', actualCount);
+                callback(chatId, actualCount);
               } else {
                 console.log('ℹ️ [chatService] Message from self, ignoring');
               }
@@ -554,16 +537,9 @@ export const chatService = {
               .single();
 
             if (message) {
-              // Update cache optimistically
-              const currentCount = unreadCountsCache[message.chat_id] || 0;
-              if (currentCount > 0) {
-                unreadCountsCache[message.chat_id] = currentCount - 1;
-                callback(message.chat_id, unreadCountsCache[message.chat_id]);
-              }
-              
-              // Verify with actual count
+              // Get actual count immediately
               const unreadCount = await this.getUnreadCount(message.chat_id, userId);
-              unreadCountsCache[message.chat_id] = unreadCount;
+              console.log('📖 [chatService] Message read, updating count for chat:', message.chat_id, 'new count:', unreadCount);
               callback(message.chat_id, unreadCount);
             }
           } catch (error) {
@@ -577,16 +553,6 @@ export const chatService = {
         if (status === 'SUBSCRIBED') {
           console.log('✅ [chatService] Successfully subscribed to unread count changes - Realtime is ACTIVE');
           console.log('🎯 [chatService] Ready to receive real-time message updates');
-          // Initialize cache by loading current counts
-          this.getByParticipant(userId).then(chats => {
-            console.log('📋 [chatService] Initializing cache for', chats.length, 'chats');
-            chats.forEach(chat => {
-              this.getUnreadCount(chat.id, userId).then(count => {
-                unreadCountsCache[chat.id] = count;
-                console.log(`📊 [chatService] Cache initialized for chat ${chat.id}: ${count} unread`);
-              });
-            });
-          });
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ [chatService] Channel error for unread counts - Realtime NOT working');
           console.error('💡 [chatService] Check Supabase Realtime configuration');
