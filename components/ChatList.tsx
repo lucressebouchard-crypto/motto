@@ -343,10 +343,10 @@ const ChatList: React.FC<ChatListProps> = ({
       }
     );
 
-    // Rafraîchir le statut toutes les 30 secondes
+    // Rafraîchir le statut plus fréquemment (toutes les 15 secondes) pour plus de précision
     const refreshInterval = setInterval(() => {
       loadOnlineStatus();
-    }, 30000);
+    }, 15000);
 
     return () => {
       if (onlineSubscription?.unsubscribe) {

@@ -135,6 +135,18 @@ export const chatService = {
           .update({ updated_at: timestamp })
           .eq('id', chatId);
 
+        // IMPORTANT: Mettre à jour l'activité de l'utilisateur pour le statut en ligne
+        // Le trigger SQL devrait le faire automatiquement, mais on le fait aussi explicitement
+        try {
+          await supabase
+            .from('users')
+            .update({ updated_at: timestamp })
+            .eq('id', senderId);
+        } catch (activityError) {
+          // Non bloquant si ça échoue
+          console.warn('Could not update user activity:', activityError);
+        }
+
         return mapMessageFromDB(message);
       } catch (error) {
         lastError = error;
@@ -462,7 +474,8 @@ export const chatService = {
         .eq('id', userId)
         .single();
       
-      if (error || !user) {
+      if (error || !user || !user.updated_at) {
+        console.log('⚠️ [chatService] Could not get user activity for:', userId, error);
         return false;
       }
       
@@ -470,25 +483,43 @@ export const chatService = {
       const lastActivity = new Date(user.updated_at).getTime();
       const now = Date.now();
       const fiveMinutesAgo = now - (5 * 60 * 1000);
+      const isOnline = lastActivity > fiveMinutesAgo;
       
-      return lastActivity > fiveMinutesAgo;
+      console.log(`📊 [chatService] User ${userId} activity check:`, {
+        lastActivity: new Date(lastActivity).toISOString(),
+        now: new Date(now).toISOString(),
+        fiveMinutesAgo: new Date(fiveMinutesAgo).toISOString(),
+        isOnline,
+      });
+      
+      return isOnline;
     } catch (error) {
-      console.error('Error checking user online status:', error);
+      console.error('❌ [chatService] Error checking user online status:', error);
       return false;
     }
   },
 
   // Get online status for multiple users
   async getUsersOnlineStatus(userIds: string[]): Promise<Record<string, boolean>> {
-    if (userIds.length === 0) return {};
+    if (userIds.length === 0) {
+      console.log('⚠️ [chatService] No user IDs provided for online status check');
+      return {};
+    }
     
     try {
+      console.log('📊 [chatService] Checking online status for', userIds.length, 'users');
       const { data: users, error } = await supabase
         .from('users')
         .select('id, updated_at')
         .in('id', userIds);
       
-      if (error || !users) {
+      if (error) {
+        console.error('❌ [chatService] Error fetching users for online status:', error);
+        return {};
+      }
+      
+      if (!users || users.length === 0) {
+        console.log('⚠️ [chatService] No users found for online status check');
         return {};
       }
       
@@ -497,13 +528,22 @@ export const chatService = {
       
       const statusMap: Record<string, boolean> = {};
       users.forEach(user => {
+        if (!user.updated_at) {
+          statusMap[user.id] = false;
+          return;
+        }
         const lastActivity = new Date(user.updated_at).getTime();
-        statusMap[user.id] = lastActivity > fiveMinutesAgo;
+        const isOnline = lastActivity > fiveMinutesAgo;
+        statusMap[user.id] = isOnline;
+        console.log(`📊 [chatService] User ${user.id}: ${isOnline ? 'ONLINE' : 'OFFLINE'} (last activity: ${new Date(lastActivity).toISOString()})`);
       });
+      
+      const onlineCount = Object.values(statusMap).filter(Boolean).length;
+      console.log(`✅ [chatService] Online status check complete: ${onlineCount}/${userIds.length} users online`);
       
       return statusMap;
     } catch (error) {
-      console.error('Error checking users online status:', error);
+      console.error('❌ [chatService] Error checking users online status:', error);
       return {};
     }
   },
