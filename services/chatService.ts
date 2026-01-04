@@ -487,8 +487,11 @@ export const chatService = {
         },
         async (payload) => {
           try {
+            console.log('📨 [chatService] Realtime event received - INSERT in messages table:', payload.new?.id);
             const message = payload.new as any;
             const chatId = message.chat_id;
+            
+            console.log('🔍 [chatService] Processing message for chat:', chatId, 'sender:', message.sender_id, 'userId:', userId);
             
             // Check if user is participant
             const { data: chat } = await supabase
@@ -498,6 +501,7 @@ export const chatService = {
               .single();
             
             if (chat && chat.participant_ids?.includes(userId)) {
+              console.log('✅ [chatService] User is participant in chat');
               // Only count if message is not from user
               if (message.sender_id !== userId) {
                 // Update cache immediately for instant badge update
@@ -505,19 +509,24 @@ export const chatService = {
                 unreadCountsCache[chatId] = currentCount + 1;
                 
                 // Callback immediately with new count
-                console.log('🆕 [chatService] New message detected, updating count immediately for chat:', chatId, 'new count:', unreadCountsCache[chatId]);
+                console.log('🆕 [chatService] New message detected, updating count immediately for chat:', chatId, 'old count:', currentCount, 'new count:', unreadCountsCache[chatId]);
                 callback(chatId, unreadCountsCache[chatId]);
                 
                 // Then verify with actual count (async, non-blocking)
                 this.getUnreadCount(chatId, userId).then(actualCount => {
+                  console.log('✅ [chatService] Verified count for chat', chatId, 'actual:', actualCount, 'cached:', unreadCountsCache[chatId]);
                   if (actualCount !== unreadCountsCache[chatId]) {
                     unreadCountsCache[chatId] = actualCount;
                     callback(chatId, actualCount);
                   }
-                }).catch(() => {
-                  // If verification fails, keep the optimistic count
+                }).catch((err) => {
+                  console.error('❌ [chatService] Error verifying count:', err);
                 });
+              } else {
+                console.log('ℹ️ [chatService] Message from self, ignoring');
               }
+            } else {
+              console.log('ℹ️ [chatService] User is not participant in this chat, ignoring');
             }
           } catch (error) {
             console.error('❌ [chatService] Error in message insert callback:', error);
@@ -563,18 +572,26 @@ export const chatService = {
         }
       )
       .subscribe((status) => {
+        console.log('📡 [chatService] Subscription status changed:', status);
+        
         if (status === 'SUBSCRIBED') {
-          console.log('✅ [chatService] Subscribed to unread count changes');
+          console.log('✅ [chatService] Successfully subscribed to unread count changes');
           // Initialize cache by loading current counts
           this.getByParticipant(userId).then(chats => {
+            console.log('📋 [chatService] Initializing cache for', chats.length, 'chats');
             chats.forEach(chat => {
               this.getUnreadCount(chat.id, userId).then(count => {
                 unreadCountsCache[chat.id] = count;
+                console.log(`📊 [chatService] Cache initialized for chat ${chat.id}: ${count} unread`);
               });
             });
           });
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ [chatService] Channel error for unread counts');
+        } else if (status === 'TIMED_OUT') {
+          console.error('❌ [chatService] Channel timed out');
+        } else if (status === 'CLOSED') {
+          console.warn('⚠️ [chatService] Channel closed');
         }
       });
     

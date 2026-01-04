@@ -90,44 +90,56 @@ const AppContent: React.FC = () => {
             // IMPORTANT: Initialiser l'abonnement Realtime dès le chargement initial
             // Nettoyer l'abonnement précédent s'il existe
             if (chatUnreadSubscriptionRef.current) {
+              console.log('🧹 [App] Cleaning up previous subscription');
               chatUnreadSubscriptionRef.current.unsubscribe();
               chatUnreadSubscriptionRef.current = null;
             }
             
-            // Cache local pour les compteurs
-            let localUnreadCounts: Record<string, number> = {};
+            // Cache local pour les compteurs (utiliser useRef pour persister entre rendus)
+            const localUnreadCountsRef = { current: {} as Record<string, number> };
             
             // Créer l'abonnement Realtime
+            console.log('📡 [App] Creating Realtime subscription for user:', user.id);
             const messageSubscription = chatService.subscribeToUnreadCounts(user.id, (chatId, unreadCount) => {
-              if (!isMounted) return;
+              if (!isMounted) {
+                console.log('⚠️ [App] Component unmounted, ignoring callback');
+                return;
+              }
               
               // Mettre à jour le cache local immédiatement
-              localUnreadCounts[chatId] = unreadCount;
+              localUnreadCountsRef.current[chatId] = unreadCount;
               
               // Calculer le total IMMÉDIATEMENT depuis le cache local
-              const totalCount = Object.values(localUnreadCounts).reduce((sum, count) => sum + count, 0);
+              const totalCount = Object.values(localUnreadCountsRef.current).reduce((sum, count) => sum + count, 0);
               
               console.log('🆕 [App] Unread count changed for chat:', chatId, 'new count:', unreadCount, 'TOTAL:', totalCount);
               
               // Mettre à jour l'état IMMÉDIATEMENT
               if (isMounted) {
+                console.log('✅ [App] Updating badge count to:', totalCount);
                 setUnreadMessagesCount(totalCount);
               }
             });
             
             chatUnreadSubscriptionRef.current = messageSubscription;
+            console.log('✅ [App] Subscription created, ref stored');
             
             // Initialiser les compteurs au démarrage
+            console.log('📊 [App] Initializing unread counts...');
             chatService.getByParticipant(user.id).then(async (chats) => {
+              console.log('📋 [App] Found', chats.length, 'chats');
               const counts: Record<string, number> = {};
               for (const chat of chats) {
                 counts[chat.id] = await chatService.getUnreadCount(chat.id, user.id);
               }
-              localUnreadCounts = counts;
+              localUnreadCountsRef.current = counts;
               const initialTotal = Object.values(counts).reduce((sum, count) => sum + count, 0);
+              console.log('📊 [App] Initial total unread count:', initialTotal);
               if (isMounted) {
                 setUnreadMessagesCount(initialTotal);
               }
+            }).catch(err => {
+              console.error('❌ [App] Error initializing counts:', err);
             });
             
             // S'abonner aux notifications aussi

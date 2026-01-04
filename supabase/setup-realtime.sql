@@ -10,3 +10,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE chats;
 -- Activer Realtime pour les notifications
 ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 
+-- Activer Realtime pour message_reads (pour les badges)
+ALTER PUBLICATION supabase_realtime ADD TABLE message_reads;
+
