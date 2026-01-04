@@ -357,7 +357,7 @@ const ChatList: React.FC<ChatListProps> = ({
     };
   }, [currentUser?.id, chats]);
 
-  // Subscribe to typing indicators for all chats in the list
+  // Subscribe to typing indicators for all chats in the list (excluding selected chat which has its own subscription)
   useEffect(() => {
     if (!currentUser || chats.length === 0) {
       if (allChatsTypingSubscriptionRef.current) {
@@ -367,14 +367,26 @@ const ChatList: React.FC<ChatListProps> = ({
       return;
     }
 
-    const chatIds = chats.map(chat => chat.id);
+    // Exclude selected chat from the list since it has its own subscription
+    const chatIds = chats
+      .filter(chat => chat.id !== selectedChat?.id)
+      .map(chat => chat.id);
+
+    if (chatIds.length === 0) {
+      // If no chats to subscribe to, cleanup
+      if (allChatsTypingSubscriptionRef.current) {
+        allChatsTypingSubscriptionRef.current.unsubscribe();
+        allChatsTypingSubscriptionRef.current = null;
+      }
+      return;
+    }
 
     // Unsubscribe from previous subscriptions
     if (allChatsTypingSubscriptionRef.current) {
       allChatsTypingSubscriptionRef.current.unsubscribe();
     }
 
-    // Subscribe to typing indicators for all chats
+    // Subscribe to typing indicators for all chats (except selected)
     allChatsTypingSubscriptionRef.current = chatService.subscribeToAllChatsTyping(
       chatIds,
       currentUser.id,
@@ -397,7 +409,7 @@ const ChatList: React.FC<ChatListProps> = ({
         allChatsTypingSubscriptionRef.current = null;
       }
     };
-  }, [currentUser?.id, chats.map(c => c.id).join(',')]);
+  }, [currentUser?.id, chats.map(c => c.id).join(','), selectedChat?.id]);
 
   // Open specific chat if selectedChatId is set
   useEffect(() => {

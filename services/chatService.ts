@@ -467,12 +467,13 @@ export const chatService = {
 
   // Subscribe to typing indicators for multiple chats (for chat list)
   subscribeToAllChatsTyping(chatIds: string[], userId: string, onTypingChange: (chatId: string, typingUserId: string, isTyping: boolean) => void) {
-    console.log('📝 [chatService] Subscribing to typing for', chatIds.length, 'chats');
+    console.log('📝 [chatService] Subscribing to typing for', chatIds.length, 'chats:', chatIds);
     
     const subscriptions: Array<{ chatId: string; subscription: any }> = [];
     
     chatIds.forEach(chatId => {
       const subscription = this.subscribeToTyping(chatId, userId, (typingUserId, isTyping) => {
+        console.log('📝 [chatService] Typing event from subscribeToAllChatsTyping:', chatId, typingUserId, isTyping);
         onTypingChange(chatId, typingUserId, isTyping);
       });
       subscriptions.push({ chatId, subscription });
@@ -481,7 +482,8 @@ export const chatService = {
     return {
       subscriptions,
       unsubscribe: () => {
-        subscriptions.forEach(({ subscription }) => {
+        console.log('📝 [chatService] Unsubscribing from all chats typing');
+        subscriptions.forEach(({ chatId, subscription }) => {
           if (subscription?.unsubscribe) {
             subscription.unsubscribe();
           }
