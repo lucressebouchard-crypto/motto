@@ -97,71 +97,60 @@ const AppContent: React.FC = () => {
               chatUnreadSubscriptionRef.current = null;
             }
             
-            // Créer l'abonnement Realtime AVANT d'initialiser les compteurs
+            // Fonction pour mettre à jour le badge - centralisée
+            const updateBadgeCount = async () => {
+              if (!isMounted || !user) return;
+              
+              try {
+                const totalCount = await chatService.getTotalUnreadCount(user.id);
+                console.log('🔄 [App] Updating badge count to:', totalCount);
+                if (isMounted) {
+                  setUnreadMessagesCount(totalCount);
+                }
+              } catch (error) {
+                console.error('❌ [App] Error updating badge count:', error);
+              }
+            };
+            
+            // Créer l'abonnement Realtime
             console.log('📡 [App] Creating Realtime subscription for user:', user.id);
             const messageSubscription = chatService.subscribeToUnreadCounts(user.id, (chatId, unreadCount) => {
               console.log('🔄 [App] Callback triggered for chat:', chatId, 'unread:', unreadCount);
               
-              if (!isMounted) {
-                console.log('⚠️ [App] Component unmounted, ignoring callback');
-                return;
-              }
+              if (!isMounted) return;
               
-              // Mettre à jour le cache persistant immédiatement
-              unreadCountsCacheRef.current[chatId] = unreadCount;
-              
-              // Recalculer le total depuis TOUS les chats pour être sûr
-              chatService.getByParticipant(user.id).then(async (chats) => {
-                const counts: Record<string, number> = {};
-                for (const chat of chats) {
-                  // Utiliser le cache mis à jour ou recalculer
-                  if (chat.id === chatId) {
-                    counts[chat.id] = unreadCount;
-                  } else {
-                    counts[chat.id] = unreadCountsCacheRef.current[chat.id] || await chatService.getUnreadCount(chat.id, user.id);
-                  }
-                }
-                unreadCountsCacheRef.current = counts;
-                const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
-                
-                console.log('🆕 [App] Total unread count calculated:', totalCount, 'from', Object.keys(counts).length, 'chats');
-                
-                // Mettre à jour l'état IMMÉDIATEMENT
-                if (isMounted) {
-                  console.log('✅ [App] Setting badge count to:', totalCount);
-                  setUnreadMessagesCount(totalCount);
-                }
-              }).catch(err => {
-                console.error('❌ [App] Error recalculating total:', err);
-                // Fallback: utiliser juste le cache
-                const totalCount = Object.values(unreadCountsCacheRef.current).reduce((sum, count) => sum + count, 0);
-                if (isMounted) {
-                  setUnreadMessagesCount(totalCount);
-                }
-              });
+              // Mettre à jour le badge immédiatement en recalculant le total
+              updateBadgeCount();
             });
             
             chatUnreadSubscriptionRef.current = messageSubscription;
             console.log('✅ [App] Subscription created and stored');
             
-            // Initialiser les compteurs au démarrage APRÈS avoir créé l'abonnement
-            console.log('📊 [App] Initializing unread counts...');
-            chatService.getByParticipant(user.id).then(async (chats) => {
-              console.log('📋 [App] Found', chats.length, 'chats');
-              const counts: Record<string, number> = {};
-              for (const chat of chats) {
-                counts[chat.id] = await chatService.getUnreadCount(chat.id, user.id);
-              }
-              // Mettre à jour le cache persistant
-              unreadCountsCacheRef.current = counts;
-              const initialTotal = Object.values(counts).reduce((sum, count) => sum + count, 0);
-              console.log('📊 [App] Initial total unread count:', initialTotal);
-              if (isMounted) {
-                setUnreadMessagesCount(initialTotal);
-              }
-            }).catch(err => {
-              console.error('❌ [App] Error initializing counts:', err);
+            // S'abonner DIRECTEMENT aux nouveaux messages pour mise à jour immédiate
+            const directMessageSubscription = chatService.subscribeToAllUserMessages(user.id, async (message, chatId) => {
+              console.log('📨 [App] Direct message received for chat:', chatId);
+              
+              if (!isMounted || message.senderId === user.id) return;
+              
+              // Mettre à jour le badge immédiatement
+              updateBadgeCount();
             });
+            
+            // Stocker aussi cette subscription
+            (chatUnreadSubscriptionRef as any).directMessageSub = directMessageSubscription;
+            
+            // Initialiser le badge au démarrage
+            updateBadgeCount();
+            
+            // Polling de sécurité toutes les 5 secondes pour s'assurer que le badge est à jour
+            const badgePollInterval = setInterval(() => {
+              if (isMounted && user) {
+                updateBadgeCount();
+              }
+            }, 5000);
+            
+            // Stocker l'interval pour le nettoyer
+            (chatUnreadSubscriptionRef as any).pollInterval = badgePollInterval;
             
             // S'abonner aux notifications aussi
             if (!notificationSubscriptionRef.current) {
@@ -246,66 +235,53 @@ const AppContent: React.FC = () => {
           console.error('Erreur lors du chargement des messages non lus:', error);
         }
 
-        // S'abonner aux changements de compteurs de messages en temps réel pour le badge global
-        // IMPORTANT: Mise à jour IMMÉDIATE du badge sans attendre le recalcul
-        // Nettoyer l'abonnement précédent s'il existe
+        // Fonction pour mettre à jour le badge
+        const updateBadgeCount = async () => {
+          if (!isMounted || !user) return;
+          
+          try {
+            const totalCount = await chatService.getTotalUnreadCount(user.id);
+            if (isMounted) {
+              setUnreadMessagesCount(totalCount);
+            }
+          } catch (error) {
+            console.error('❌ [App] Error updating badge count:', error);
+          }
+        };
+        
+        // S'abonner aux changements de compteurs de messages en temps réel
         if (chatUnreadSubscriptionRef.current) {
           chatUnreadSubscriptionRef.current.unsubscribe();
           chatUnreadSubscriptionRef.current = null;
         }
         
         console.log('📡 [App] Creating Realtime subscription in onAuthStateChange for user:', user.id);
-        const messageSubscription = chatService.subscribeToUnreadCounts(user.id, (chatId, unreadCount) => {
-          console.log('🔄 [App] Callback triggered in onAuthStateChange for chat:', chatId, 'unread:', unreadCount);
-          
+        const messageSubscription = chatService.subscribeToUnreadCounts(user.id, () => {
           if (!isMounted) return;
-          
-          // Mettre à jour le cache persistant immédiatement
-          unreadCountsCacheRef.current[chatId] = unreadCount;
-          
-          // Recalculer le total depuis TOUS les chats
-          chatService.getByParticipant(user.id).then(async (chats) => {
-            const counts: Record<string, number> = {};
-            for (const chat of chats) {
-              if (chat.id === chatId) {
-                counts[chat.id] = unreadCount;
-              } else {
-                counts[chat.id] = unreadCountsCacheRef.current[chat.id] || await chatService.getUnreadCount(chat.id, user.id);
-              }
-            }
-            unreadCountsCacheRef.current = counts;
-            const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
-            
-            console.log('🆕 [App] Total unread count in onAuthStateChange:', totalCount);
-            
-            if (isMounted) {
-              setUnreadMessagesCount(totalCount);
-            }
-          }).catch(err => {
-            console.error('❌ [App] Error recalculating total in onAuthStateChange:', err);
-            const totalCount = Object.values(unreadCountsCacheRef.current).reduce((sum, count) => sum + count, 0);
-            if (isMounted) {
-              setUnreadMessagesCount(totalCount);
-            }
-          });
+          updateBadgeCount();
         });
         
         chatUnreadSubscriptionRef.current = messageSubscription;
-        console.log('✅ [App] Subscription created in onAuthStateChange');
         
-        // Initialiser les compteurs au démarrage
-        chatService.getByParticipant(user.id).then(async (chats) => {
-          const counts: Record<string, number> = {};
-          for (const chat of chats) {
-            counts[chat.id] = await chatService.getUnreadCount(chat.id, user.id);
-          }
-          unreadCountsCacheRef.current = counts;
-          const initialTotal = Object.values(counts).reduce((sum, count) => sum + count, 0);
-          console.log('📊 [App] Initial total in onAuthStateChange:', initialTotal);
-          if (isMounted) {
-            setUnreadMessagesCount(initialTotal);
-          }
+        // S'abonner DIRECTEMENT aux nouveaux messages
+        const directMessageSubscription = chatService.subscribeToAllUserMessages(user.id, async (message, chatId) => {
+          if (!isMounted || message.senderId === user.id) return;
+          updateBadgeCount();
         });
+        
+        (chatUnreadSubscriptionRef.current as any).directMessageSub = directMessageSubscription;
+        
+        // Initialiser le badge
+        updateBadgeCount();
+        
+        // Polling de sécurité toutes les 5 secondes
+        const badgePollInterval = setInterval(() => {
+          if (isMounted && user) {
+            updateBadgeCount();
+          }
+        }, 5000);
+        
+        (chatUnreadSubscriptionRef.current as any).pollInterval = badgePollInterval;
 
         // S'abonner aux nouvelles notifications
         const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {
