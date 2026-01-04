@@ -275,6 +275,26 @@ const AppContent: React.FC = () => {
         // Initialiser le badge
         updateBadgeCount();
         
+        // Mettre à jour l'activité de l'utilisateur pour le statut en ligne
+        const updateUserActivity = async () => {
+          try {
+            await supabase
+              .from('users')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', user.id);
+          } catch (error) {
+            console.error('Error updating user activity:', error);
+          }
+        };
+        
+        // Mettre à jour l'activité au démarrage et toutes les 2 minutes
+        updateUserActivity();
+        const activityInterval = setInterval(() => {
+          if (isMounted && user) {
+            updateUserActivity();
+          }
+        }, 2 * 60 * 1000);
+        
         // Polling de sécurité toutes les 5 secondes
         const badgePollInterval = setInterval(() => {
           if (isMounted && user) {
@@ -283,6 +303,7 @@ const AppContent: React.FC = () => {
         }, 5000);
         
         (chatUnreadSubscriptionRef.current as any).pollInterval = badgePollInterval;
+        (chatUnreadSubscriptionRef.current as any).activityInterval = activityInterval;
 
         // S'abonner aux nouvelles notifications
         const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {
