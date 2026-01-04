@@ -327,6 +327,49 @@ const ChatList: React.FC<ChatListProps> = ({ onClose, currentUser, selectedChatI
     return () => clearInterval(interval);
   }, [currentUser?.id]); // Seulement recharger si l'utilisateur change
 
+  // S'abonner aux changements de compteurs de messages non lus en temps réel
+  useEffect(() => {
+    if (!currentUser) {
+      if (unreadCountSubscriptionRef.current) {
+        unreadCountSubscriptionRef.current.unsubscribe();
+        unreadCountSubscriptionRef.current = null;
+      }
+      return;
+    }
+
+    console.log('📊 [ChatList] Subscribing to unread count changes for user:', currentUser.id);
+
+    // S'abonner aux changements de compteurs de messages non lus
+    unreadCountSubscriptionRef.current = chatService.subscribeToUnreadCounts(currentUser.id, async (chatId, unreadCount) => {
+      console.log('🔄 [ChatList] Unread count updated via Realtime for chat:', chatId, 'count:', unreadCount);
+      
+      // Mettre à jour le compteur individuel du chat
+      setUnreadCounts(prev => {
+        const updated = { ...prev, [chatId]: unreadCount };
+        
+        // Recalculer le total
+        const newTotal = Object.values(updated).reduce((sum, count) => sum + count, 0);
+        console.log('🔔 [ChatList] New total unread count:', newTotal);
+        setTotalUnreadCount(newTotal);
+        
+        // Notifier le parent immédiatement
+        if (onUnreadCountChange) {
+          onUnreadCountChange(newTotal);
+        }
+        
+        return updated;
+      });
+    });
+
+    return () => {
+      if (unreadCountSubscriptionRef.current) {
+        console.log('📊 [ChatList] Unsubscribing from unread count changes');
+        unreadCountSubscriptionRef.current.unsubscribe();
+        unreadCountSubscriptionRef.current = null;
+      }
+    };
+  }, [currentUser?.id, onUnreadCountChange]);
+
   // Exposer le compteur total pour App.tsx
   useEffect(() => {
     if (onUnreadCountChange) {

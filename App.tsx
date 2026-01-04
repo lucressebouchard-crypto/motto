@@ -40,6 +40,7 @@ const AppContent: React.FC = () => {
 
   // Stocker les références aux abonnements pour pouvoir les nettoyer
   const notificationSubscriptionRef = React.useRef<{ unsubscribe: () => void } | null>(null);
+  const chatUnreadSubscriptionRef = React.useRef<any>(null);
   const authSubscriptionRef = React.useRef<{ unsubscribe: () => void } | null>(null);
 
   // Charger l'utilisateur et les listings depuis Supabase au démarrage
@@ -149,8 +150,25 @@ const AppContent: React.FC = () => {
           console.error('Erreur lors du chargement des messages non lus:', error);
         }
 
-        // S'abonner aux changements de compteurs de messages en temps réel
-        // (géré dans ChatList, mais on peut aussi le faire ici pour le badge global)
+        // S'abonner aux changements de compteurs de messages en temps réel pour le badge global
+        // S'abonner aux nouveaux messages en temps réel pour mettre à jour immédiatement le badge
+        const messageSubscription = chatService.subscribeToUnreadCounts(user.id, async (chatId, unreadCount) => {
+          if (!isMounted) return;
+          
+          try {
+            // Recalculer le compteur total immédiatement
+            const totalCount = await chatService.getTotalUnreadCount(user.id);
+            console.log('🆕 [App] New message received, updating badge to:', totalCount);
+            
+            if (isMounted) {
+              setUnreadMessagesCount(totalCount);
+            }
+          } catch (error) {
+            console.error('❌ [App] Error updating unread count:', error);
+          }
+        });
+        
+        chatUnreadSubscriptionRef.current = messageSubscription;
 
         // S'abonner aux nouvelles notifications
         const notifSubscription = notificationService.subscribeToNotifications(user.id, async () => {
@@ -184,6 +202,10 @@ const AppContent: React.FC = () => {
       if (notificationSubscriptionRef.current) {
         notificationSubscriptionRef.current.unsubscribe();
         notificationSubscriptionRef.current = null;
+      }
+      if (chatUnreadSubscriptionRef.current) {
+        chatUnreadSubscriptionRef.current.unsubscribe();
+        chatUnreadSubscriptionRef.current = null;
       }
       if (authSubscriptionRef.current) {
         authSubscriptionRef.current.unsubscribe();
