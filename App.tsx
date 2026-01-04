@@ -8,6 +8,7 @@ import { listingService } from './services/listingService';
 import { favoriteService } from './services/favoriteService';
 import { chatService } from './services/chatService';
 import { notificationService } from './services/notificationService';
+import { supabase } from './lib/supabase';
 import { AppCacheProvider, useAppCache } from './contexts/AppCache';
 import Feed from './components/Feed';
 import MechanicFeed from './components/MechanicFeed';
