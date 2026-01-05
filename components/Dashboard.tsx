@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
-import { Settings, LogOut, TrendingUp, ShoppingBag, Eye, Heart, BarChart3, Rocket, Store, ShieldCheck, X, AlertCircle, CheckCircle, Edit2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, LogOut, TrendingUp, ShoppingBag, Eye, Heart, BarChart3, Rocket, Store, ShieldCheck, X, AlertCircle, CheckCircle, Edit2, Trash2, FileText, Download, Search } from 'lucide-react';
 import { User, Listing } from '../types';
 import ListingCard from './ListingCard';
 import { listingService } from '../services/listingService';
 import EditListingModal from './EditListingModal';
 import AlertModal from './AlertModal';
+import { supabase } from '../lib/supabase';
 
 interface DashboardProps {
   user: User;
@@ -18,17 +19,57 @@ interface DashboardProps {
   onListingUpdate?: () => void; // Pour recharger les listings après modification
 }
 
+interface Expertise {
+  id: string;
+  vehicle_make: string;
+  vehicle_model: string;
+  vehicle_year?: number;
+  vehicle_plate?: string;
+  health_score: number;
+  recommendations: string[];
+  pdf_url?: string;
+  created_at: string;
+  mechanic_id: string;
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorites, onToggleFavorite, onSelectListing, onLogout, onListingUpdate }) => {
-  const [view, setView] = useState<'sales' | 'favorites'>('sales');
+  const [view, setView] = useState<'sales' | 'favorites' | 'activities'>('sales');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [boostingId, setBoostingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [editingListing, setEditingListing] = useState<Listing | null>(null);
   const [alert, setAlert] = useState<{ message: string; type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
+  const [expertises, setExpertises] = useState<Expertise[]>([]);
+  const [loadingExpertises, setLoadingExpertises] = useState(false);
 
   const mySales = listings.filter(l => l.sellerId === user.id);
   const myFavorites = listings.filter(l => favorites.includes(l.id));
+
+  // Charger les expertises pour les non-sellers
+  useEffect(() => {
+    if (user.role !== 'seller' && user.role !== 'mechanic') {
+      loadExpertises();
+    }
+  }, [user.id, user.role]);
+
+  const loadExpertises = async () => {
+    setLoadingExpertises(true);
+    try {
+      const { data, error } = await supabase
+        .from('expertises')
+        .select('*')
+        .eq('buyer_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setExpertises(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des expertises:', error);
+    } finally {
+      setLoadingExpertises(false);
+    }
+  };
 
   const handleBoost = async (id: string) => {
     setBoostingId(id);
@@ -110,6 +151,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
           >
             <ShoppingBag size={18} /> {user.role === 'seller' ? 'Mes Annonces' : 'Mon Activité'}
           </button>
+          {user.role !== 'seller' && (
+            <button 
+              onClick={() => setView('activities')}
+              className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center gap-2 ${view === 'activities' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <FileText size={18} /> Mes Activités
+            </button>
+          )}
           <button 
             onClick={() => setView('favorites')}
             className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center gap-2 ${view === 'favorites' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-gray-400 hover:text-gray-600'}`}
@@ -120,7 +169,85 @@ const Dashboard: React.FC<DashboardProps> = ({ user, listings, onBoost, favorite
       </div>
 
       <div className="max-w-5xl mx-auto p-6 sm:p-10 space-y-10">
-        {view === 'sales' ? (
+        {view === 'activities' ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Mes Expertises ({expertises.length})</h3>
+            </div>
+            
+            {loadingExpertises ? (
+              <div className="text-center py-12 text-gray-400">Chargement...</div>
+            ) : expertises.length === 0 ? (
+              <div className="text-center py-24 bg-white rounded-[48px] border-2 border-dashed border-gray-100">
+                <FileText size={48} className="text-gray-200 mx-auto mb-4" />
+                <p className="text-gray-400 font-bold italic">Aucune expertise reçue pour le moment.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {expertises.map((expertise) => (
+                  <div key={expertise.id} className="bg-white border border-gray-100 rounded-[32px] p-6 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h4 className="text-lg font-black text-gray-900 mb-1">
+                          {expertise.vehicle_make} {expertise.vehicle_model}
+                          {expertise.vehicle_year && ` ${expertise.vehicle_year}`}
+                        </h4>
+                        {expertise.vehicle_plate && (
+                          <p className="text-sm text-gray-500">Plaque: {expertise.vehicle_plate}</p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(expertise.created_at).toLocaleDateString('fr-FR', { 
+                            day: 'numeric', 
+                            month: 'long', 
+                            year: 'numeric' 
+                          })}
+                        </p>
+                      </div>
+                      <div className={`px-4 py-2 rounded-xl font-black text-lg ${
+                        expertise.health_score >= 75 ? 'bg-green-100 text-green-600' :
+                        expertise.health_score >= 50 ? 'bg-amber-100 text-amber-600' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        {expertise.health_score}%
+                      </div>
+                    </div>
+
+                    {expertise.recommendations && expertise.recommendations.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-xs font-black text-gray-600 uppercase tracking-widest mb-2">Recommandations</p>
+                        <ul className="space-y-1">
+                          {expertise.recommendations.slice(0, 3).map((rec, idx) => (
+                            <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
+                              <span className="text-indigo-600 mt-1">•</span>
+                              <span>{rec.replace(/^[⚠️📋🔧]+\s*/, '')}</span>
+                            </li>
+                          ))}
+                          {expertise.recommendations.length > 3 && (
+                            <li className="text-xs text-gray-400 italic">
+                              +{expertise.recommendations.length - 3} autres recommandations
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+
+                    {expertise.pdf_url && (
+                      <a
+                        href={expertise.pdf_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-colors"
+                      >
+                        <Download size={14} />
+                        Télécharger le rapport PDF
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : view === 'sales' ? (
           <div className="space-y-6">
             <div className="flex items-center justify-between px-1">
               <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Inventaire ({mySales.length})</h3>
