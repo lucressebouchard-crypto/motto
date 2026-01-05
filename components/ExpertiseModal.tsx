@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Plus, Upload, Camera, Video, CheckCircle2, Circle, Download, FileText, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { X, Plus, Upload, Camera, Video, CheckCircle2, Circle, Download, FileText, Image as ImageIcon, Trash2, ArrowLeft } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabase';
@@ -542,22 +542,28 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   }, [categories]);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-indigo-900/40 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose} />
-      <div className="bg-white w-full max-w-5xl rounded-[48px] p-6 sm:p-8 shadow-2xl relative z-10 animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6 sticky top-0 bg-white pb-4 border-b border-gray-100">
-          <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Expertise Véhicule</h2>
-            <p className="text-sm text-gray-500 font-medium mt-1">Check-list d'inspection interactive</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header avec bouton retour */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-700"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <div>
+              <h2 className="text-2xl font-black text-gray-900 tracking-tight">Expertise Véhicule</h2>
+              <p className="text-sm text-gray-500 font-medium mt-1">Check-list d'inspection interactive</p>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500"
-          >
-            <X size={20} />
-          </button>
         </div>
+      </div>
+
+      {/* Contenu scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 
         {/* Vehicle Info */}
         <div className="grid grid-cols-2 gap-4 mb-6">
@@ -758,22 +764,23 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
           </div>
         )}
 
-        {/* Actions */}
-        <div className="mt-8 flex gap-4 justify-end sticky bottom-0 bg-white pt-4 border-t border-gray-100">
-          <button
-            onClick={onClose}
-            className="px-6 py-3 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Annuler
-          </button>
-          <button
-            onClick={handleGenerateReport}
-            disabled={!vehicleData.make || !vehicleData.model || categories.every(c => c.points.every(p => p.rating === null))}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            <FileText size={18} />
-            Générer Rapport PDF
-          </button>
+          {/* Actions */}
+          <div className="mt-8 flex gap-4 justify-end sticky bottom-0 bg-gray-50 pt-6 pb-4 border-t border-gray-100">
+            <button
+              onClick={onClose}
+              className="px-6 py-3 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleGenerateReport}
+              disabled={!vehicleData.make || !vehicleData.model || categories.every(c => c.points.every(p => p.rating === null))}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <FileText size={18} />
+              Générer Rapport PDF
+            </button>
+          </div>
         </div>
       </div>
     </div>
