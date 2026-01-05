@@ -104,7 +104,7 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
   const renderView = () => {
     switch (activeView) {
       case 'overview':
-        return <OverviewView user={user} stats={stats} appointments={appointments} onOpenExpertise={() => setIsCreatingExpertise(true)} />;
+        return <OverviewView user={user} stats={stats} appointments={appointments} onOpenExpertise={() => { setIsCreatingExpertise(true); setActiveView('expertise'); }} />;
       case 'appointments':
         return <AppointmentsView appointments={appointments} onOpenAdd={() => setIsAddingAppointment(true)} />;
       case 'clients':
@@ -113,8 +113,61 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
         return <QuotesView />;
       case 'inventory':
         return <InventoryView />;
+      case 'expertise':
+        return isCreatingExpertise ? (
+          <ExpertiseModal
+            onClose={() => {
+              setIsCreatingExpertise(false);
+              setActiveView('overview');
+            }}
+            onSubmit={async (expertiseData) => {
+              try {
+                // Sauvegarder l'expertise dans la base de données
+                const { data, error } = await supabase
+                  .from('expertises')
+                  .insert([
+                    {
+                      mechanic_id: expertiseData.mechanicId,
+                      buyer_id: expertiseData.buyerId || null,
+                      vehicle_make: expertiseData.vehicle.make,
+                      vehicle_model: expertiseData.vehicle.model,
+                      vehicle_year: expertiseData.vehicle.year,
+                      vehicle_plate: expertiseData.vehicle.plateNumber,
+                      health_score: expertiseData.healthScore,
+                      recommendations: expertiseData.recommendations,
+                      inspection_data: expertiseData.inspectionCategories,
+                      pdf_url: expertiseData.pdfUrl,
+                      created_at: new Date().toISOString(),
+                    }
+                  ])
+                  .select()
+                  .single();
+
+                if (error) throw error;
+
+                // Envoyer une notification au buyer s'il y en a un
+                if (expertiseData.buyerId) {
+                  await notificationService.create({
+                    userId: expertiseData.buyerId,
+                    title: 'Nouveau Rapport d\'Expertise',
+                    body: `Votre rapport d'expertise pour ${expertiseData.vehicle.make} ${expertiseData.vehicle.model} est disponible. Score de santé: ${expertiseData.healthScore}%`
+                  });
+                }
+
+                setIsCreatingExpertise(false);
+                setActiveView('overview');
+                // Optionnel: afficher un message de succès
+                alert('Rapport d\'expertise généré et envoyé avec succès !');
+              } catch (error) {
+                console.error('Erreur lors de la sauvegarde de l\'expertise:', error);
+                alert('Erreur lors de la sauvegarde de l\'expertise');
+              }
+            }}
+            mechanic={user}
+          />
+        ) : null;
       default:
-        return <OverviewView user={user} stats={stats} appointments={appointments} />;
+        return <OverviewView user={user} stats={stats} appointments={appointments} onOpenExpertise={() => { setIsCreatingExpertise(true); setActiveView('expertise'); }} />;
     }
   };
 
