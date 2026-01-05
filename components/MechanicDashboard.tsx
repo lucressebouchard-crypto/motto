@@ -15,6 +15,11 @@ interface MechanicDashboardProps {
   user: User;
   onLogout: () => void;
   onExit: () => void;
+  quickCreateAction?: {
+    type: 'appointment' | 'client' | 'quote' | 'inventory' | 'expertise' | 'navigate';
+    view?: 'appointments' | 'clients' | 'quotes' | 'inventory';
+  } | null;
+  onQuickCreateActionHandled?: () => void;
 }
 
 interface InternalAppointment {
@@ -28,7 +33,7 @@ interface InternalAppointment {
   reminder?: boolean;
 }
 
-const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, onExit }) => {
+const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, onExit, quickCreateAction, onQuickCreateActionHandled }) => {
   const [activeView, setActiveView] = useState<'overview' | 'appointments' | 'clients' | 'quotes' | 'inventory'>('overview');
   const [isNavExpanded, setIsNavExpanded] = useState(false);
   const [appointments, setAppointments] = useState<InternalAppointment[]>([
@@ -39,6 +44,23 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
     { id: '5', time: '15:30', date: '2024-05-13', client: 'Ali S.', service: 'Freinage', vehicle: 'Suzuki Swift', status: 'confirmed' },
   ]);
   const [isAddingAppointment, setIsAddingAppointment] = useState(false);
+  
+  // Handle quick create actions from App.tsx
+  useEffect(() => {
+    if (quickCreateAction && onQuickCreateActionHandled) {
+      if (quickCreateAction.type === 'appointment') {
+        setIsAddingAppointment(true);
+        if (activeView !== 'appointments') {
+          setActiveView('appointments');
+        }
+      } else if (quickCreateAction.type === 'navigate' && quickCreateAction.view) {
+        setActiveView(quickCreateAction.view);
+      }
+      // Note: For other types (client, quote, inventory, expertise), 
+      // we'll navigate to the appropriate view and the view can handle showing its create modal
+      onQuickCreateActionHandled();
+    }
+  }, [quickCreateAction, onQuickCreateActionHandled, activeView]);
 
   // List of unique clients for suggestions
   const existingClientsList = [

@@ -15,6 +15,7 @@ import MechanicFeed from './components/MechanicFeed';
 import CreateListingModal from './components/CreateListingModal';
 import Dashboard from './components/Dashboard';
 import MechanicDashboard from './components/MechanicDashboard';
+import MechanicQuickCreateModal from './components/MechanicQuickCreateModal';
 import ChatList from './components/ChatList';
 import ListingDetails from './components/ListingDetails';
 import NotificationList from './components/NotificationList';
@@ -25,6 +26,11 @@ const AppContent: React.FC = () => {
   const { listings: cachedListings, setListings: setCachedListings, clearCache } = useAppCache();
   const [activeTab, setActiveTab] = useState<'home' | 'cars' | 'motos' | 'mechanics' | 'accessories' | 'profile' | 'auth'>('home');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showMechanicQuickCreate, setShowMechanicQuickCreate] = useState(false);
+  const [mechanicQuickCreateAction, setMechanicQuickCreateAction] = useState<{
+    type: 'appointment' | 'client' | 'quote' | 'inventory' | 'expertise' | 'navigate';
+    view?: 'appointments' | 'clients' | 'quotes' | 'inventory';
+  } | null>(null);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -781,6 +787,10 @@ const AppContent: React.FC = () => {
             
             {activeTab === 'mechanics' ? (
               <NavButton active={true} onClick={() => { resetViews(); setActiveTab('mechanics'); }} icon={<Wrench size={22} />} label="Pros" />
+            ) : currentUser?.role === 'mechanic' ? (
+              <button onClick={() => setShowMechanicQuickCreate(true)} className="bg-indigo-600 text-white rounded-full p-4 -mt-12 shadow-xl border-4 border-white active:scale-95 transition-transform hover:bg-indigo-700">
+                <Plus size={24} strokeWidth={3} />
+              </button>
             ) : currentUser?.role === 'seller' ? (
               <button onClick={() => setShowCreateModal(true)} className="bg-indigo-600 text-white rounded-full p-4 -mt-12 shadow-xl border-4 border-white active:scale-95 transition-transform hover:bg-indigo-700">
                 <Plus size={24} strokeWidth={3} />
@@ -813,6 +823,76 @@ const AppContent: React.FC = () => {
         }} 
         currentUser={currentUser}
       />}
+      
+      {showMechanicQuickCreate && currentUser?.role === 'mechanic' && (
+        <MechanicQuickCreateModal
+          onClose={() => setShowMechanicQuickCreate(false)}
+          onCreateAppointment={() => {
+            // Si l'utilisateur n'est pas sur le dashboard, l'y rediriger
+            if (activeTab !== 'profile') {
+              setActiveTab('profile');
+              // Attendre que le dashboard soit monté, puis déclencher l'action
+              setTimeout(() => {
+                setMechanicQuickCreateAction({ type: 'appointment' });
+              }, 100);
+            } else {
+              // Le dashboard est déjà monté, déclencher directement
+              setMechanicQuickCreateAction({ type: 'appointment' });
+            }
+          }}
+          onCreateClient={() => {
+            if (activeTab !== 'profile') {
+              setActiveTab('profile');
+              setTimeout(() => {
+                setMechanicQuickCreateAction({ type: 'navigate', view: 'clients' });
+              }, 100);
+            } else {
+              setMechanicQuickCreateAction({ type: 'navigate', view: 'clients' });
+            }
+          }}
+          onCreateQuote={() => {
+            if (activeTab !== 'profile') {
+              setActiveTab('profile');
+              setTimeout(() => {
+                setMechanicQuickCreateAction({ type: 'navigate', view: 'quotes' });
+              }, 100);
+            } else {
+              setMechanicQuickCreateAction({ type: 'navigate', view: 'quotes' });
+            }
+          }}
+          onCreateInventoryItem={() => {
+            if (activeTab !== 'profile') {
+              setActiveTab('profile');
+              setTimeout(() => {
+                setMechanicQuickCreateAction({ type: 'navigate', view: 'inventory' });
+              }, 100);
+            } else {
+              setMechanicQuickCreateAction({ type: 'navigate', view: 'inventory' });
+            }
+          }}
+          onCreateExpertise={() => {
+            // Pour l'expertise, on peut aussi rediriger vers appointments
+            if (activeTab !== 'profile') {
+              setActiveTab('profile');
+              setTimeout(() => {
+                setMechanicQuickCreateAction({ type: 'appointment' });
+              }, 100);
+            } else {
+              setMechanicQuickCreateAction({ type: 'appointment' });
+            }
+          }}
+          onNavigateToView={(view) => {
+            if (activeTab !== 'profile') {
+              setActiveTab('profile');
+              setTimeout(() => {
+                setMechanicQuickCreateAction({ type: 'navigate', view });
+              }, 100);
+            } else {
+              setMechanicQuickCreateAction({ type: 'navigate', view });
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
