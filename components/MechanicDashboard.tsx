@@ -94,7 +94,7 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
   const renderView = () => {
     switch (activeView) {
       case 'overview':
-        return <OverviewView user={user} stats={stats} appointments={appointments} />;
+        return <OverviewView user={user} stats={stats} appointments={appointments} onOpenAdd={() => setIsAddingAppointment(true)} />;
       case 'appointments':
         return <AppointmentsView appointments={appointments} onOpenAdd={() => setIsAddingAppointment(true)} />;
       case 'clients':
@@ -196,19 +196,51 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
 
 // --- SUB-VIEWS ---
 
-const OverviewView: React.FC<{ user: User, stats: any[], appointments: InternalAppointment[] }> = ({ user, stats, appointments }) => {
+const OverviewView: React.FC<{ user: User, stats: any[], appointments: InternalAppointment[], onOpenAdd: () => void }> = ({ user, stats, appointments, onOpenAdd }) => {
   const todayApps = appointments.filter(a => a.date === '2024-05-12');
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [showFloatingButton, setShowFloatingButton] = useState(false);
+
+  useEffect(() => {
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // Si le bouton n'est pas visible (hors viewport), afficher le bouton flottant
+          setShowFloatingButton(!entry.isIntersecting);
+        });
+      },
+      {
+        threshold: 0.1, // Le bouton est considéré comme visible si au moins 10% est visible
+        rootMargin: '-10px', // Petite marge pour déclencher avant que le bouton sorte complètement
+      }
+    );
+
+    observer.observe(button);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Bonjour, {user.shopName}</h1>
-          <p className="text-gray-400 font-medium text-sm">Voici l'activité de votre garage aujourd'hui.</p>
+    <>
+      <div className="space-y-10 animate-in fade-in slide-in-from-bottom duration-500">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Bonjour, {user.shopName}</h1>
+            <p className="text-gray-400 font-medium text-sm">Voici l'activité de votre garage aujourd'hui.</p>
+          </div>
+          <button 
+            ref={buttonRef}
+            onClick={onOpenAdd}
+            className="bg-indigo-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all flex items-center gap-2"
+          >
+            <Plus size={18} /> Nouvelle Expertise
+          </button>
         </div>
-        <button className="bg-indigo-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all flex items-center gap-2">
-          <Plus size={18} /> Nouvelle Expertise
-        </button>
-      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(s => (
