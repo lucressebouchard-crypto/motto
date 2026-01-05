@@ -141,29 +141,50 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // Calcul du Score de Santé Global
+  // Calcul du Score de Santé Global basé sur les notes individuelles
   const calculateHealthScore = () => {
     let totalWeightedScore = 0;
     let totalWeight = 0;
     const newRecommendations: string[] = [];
 
     categories.forEach(category => {
-      const checkedPoints = category.points.filter(p => p.checked).length;
-      const totalPoints = category.points.length;
-      const categoryScore = totalPoints > 0 ? (checkedPoints / totalPoints) * 100 : 0;
+      // Calculer le score moyen de la catégorie basé sur les notes
+      let categoryTotalScore = 0;
+      let ratedPointsCount = 0;
       
+      category.points.forEach(point => {
+        if (point.rating !== null) {
+          const ratingData = RATING_LEVELS.find(r => r.value === point.rating);
+          if (ratingData) {
+            categoryTotalScore += ratingData.score;
+            ratedPointsCount++;
+            
+            // Générer des recommandations basées sur les notes individuelles
+            if (point.rating === 'critical') {
+              newRecommendations.push(`🚨 ${point.label}: État critique nécessitant une intervention immédiate`);
+            } else if (point.rating === 'below_average') {
+              newRecommendations.push(`⚠️ ${point.label}: État inférieur à la moyenne, attention recommandée`);
+            }
+          }
+        }
+      });
+      
+      // Score moyen de la catégorie (0-100)
+      const categoryScore = ratedPointsCount > 0 ? categoryTotalScore / ratedPointsCount : 0;
+      
+      // Appliquer le poids de la catégorie
       const weightedScore = categoryScore * category.weight;
       totalWeightedScore += weightedScore;
-      totalWeight += category.weight;
+      totalWeight += category.weight * (ratedPointsCount > 0 ? 1 : 0); // Ne compter que si au moins un point est noté
 
-      // Générer des recommandations basées sur le score de la catégorie
-      if (categoryScore < 50) {
-        newRecommendations.push(`⚠️ ${category.name}: Nécessite une attention immédiate (${Math.round(categoryScore)}% OK)`);
-      } else if (categoryScore < 75) {
-        newRecommendations.push(`📋 ${category.name}: Contrôles recommandés (${Math.round(categoryScore)}% OK)`);
+      // Générer des recommandations globales pour la catégorie
+      if (ratedPointsCount > 0) {
+        if (categoryScore < 50) {
+          newRecommendations.push(`⚠️ ${category.name}: Nécessite une attention immédiate (Score: ${Math.round(categoryScore)}%)`);
+        } else if (categoryScore < 75) {
+          newRecommendations.push(`📋 ${category.name}: Contrôles recommandés (Score: ${Math.round(categoryScore)}%)`);
+        }
       }
-
-      // Les points critiques sont déjà traités dans la boucle des notes ci-dessus
     });
 
     const finalScore = totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 0;
