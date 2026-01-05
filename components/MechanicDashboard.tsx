@@ -178,7 +178,7 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
           <button className="p-3 bg-white/10 rounded-2xl"><Settings size={20}/></button>
         </div>
 
-        <div className="p-4 sm:p-8 lg:p-12 space-y-8 max-w-6xl mx-auto w-full">
+        <div className="p-4 sm:p-8 lg:p-12 space-y-8 max-w-6xl mx-auto w-full pt-24 lg:pt-12">
           {renderView()}
         </div>
       </main>
