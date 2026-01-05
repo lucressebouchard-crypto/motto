@@ -10,6 +10,9 @@ import {
   BellRing, BellOff, Volume2
 } from 'lucide-react';
 import { User } from '../types';
+import ExpertiseModal, { ExpertiseData } from './ExpertiseModal';
+import { notificationService } from '../services/notificationService';
+import { supabase } from '../lib/supabase';
 
 interface MechanicDashboardProps {
   user: User;
@@ -44,6 +47,7 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
     { id: '5', time: '15:30', date: '2024-05-13', client: 'Ali S.', service: 'Freinage', vehicle: 'Suzuki Swift', status: 'confirmed' },
   ]);
   const [isAddingAppointment, setIsAddingAppointment] = useState(false);
+  const [isCreatingExpertise, setIsCreatingExpertise] = useState(false);
   
   // Handle quick create actions from App.tsx
   useEffect(() => {
@@ -94,7 +98,7 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
   const renderView = () => {
     switch (activeView) {
       case 'overview':
-        return <OverviewView user={user} stats={stats} appointments={appointments} onOpenAdd={() => setIsAddingAppointment(true)} />;
+        return <OverviewView user={user} stats={stats} appointments={appointments} onOpenExpertise={() => setIsCreatingExpertise(true)} />;
       case 'appointments':
         return <AppointmentsView appointments={appointments} onOpenAdd={() => setIsAddingAppointment(true)} />;
       case 'clients':
@@ -190,13 +194,62 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
           existingClients={existingClientsList}
         />
       )}
+
+      {isCreatingExpertise && (
+        <ExpertiseModal
+          onClose={() => setIsCreatingExpertise(false)}
+          onSubmit={async (expertiseData) => {
+            try {
+              // Sauvegarder l'expertise dans la base de données
+              const { data, error } = await supabase
+                .from('expertises')
+                .insert([
+                  {
+                    mechanic_id: expertiseData.mechanicId,
+                    buyer_id: expertiseData.buyerId || null,
+                    vehicle_make: expertiseData.vehicle.make,
+                    vehicle_model: expertiseData.vehicle.model,
+                    vehicle_year: expertiseData.vehicle.year,
+                    vehicle_plate: expertiseData.vehicle.plateNumber,
+                    health_score: expertiseData.healthScore,
+                    recommendations: expertiseData.recommendations,
+                    inspection_data: expertiseData.inspectionCategories,
+                    pdf_url: expertiseData.pdfUrl,
+                    created_at: new Date().toISOString(),
+                  }
+                ])
+                .select()
+                .single();
+
+              if (error) throw error;
+
+              // Envoyer une notification au buyer s'il y en a un
+              if (expertiseData.buyerId) {
+                await notificationService.create({
+                  userId: expertiseData.buyerId,
+                  title: 'Nouveau Rapport d\'Expertise',
+                  body: `Votre rapport d'expertise pour ${expertiseData.vehicle.make} ${expertiseData.vehicle.model} est disponible. Score de santé: ${expertiseData.healthScore}%`
+                });
+              }
+
+              setIsCreatingExpertise(false);
+              // Optionnel: afficher un message de succès
+              alert('Rapport d\'expertise généré et envoyé avec succès !');
+            } catch (error) {
+              console.error('Erreur lors de la sauvegarde de l\'expertise:', error);
+              alert('Erreur lors de la sauvegarde de l\'expertise');
+            }
+          }}
+          mechanic={user}
+        />
+      )}
     </div>
   );
 };
 
 // --- SUB-VIEWS ---
 
-const OverviewView: React.FC<{ user: User, stats: any[], appointments: InternalAppointment[], onOpenAdd: () => void }> = ({ user, stats, appointments, onOpenAdd }) => {
+const OverviewView: React.FC<{ user: User, stats: any[], appointments: InternalAppointment[], onOpenExpertise: () => void }> = ({ user, stats, appointments, onOpenExpertise }) => {
   const todayApps = appointments.filter(a => a.date === '2024-05-12');
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [showFloatingButton, setShowFloatingButton] = useState(false);
@@ -235,7 +288,7 @@ const OverviewView: React.FC<{ user: User, stats: any[], appointments: InternalA
           </div>
           <button 
             ref={buttonRef}
-            onClick={onOpenAdd}
+            onClick={onOpenExpertise}
             className="bg-indigo-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all flex items-center gap-2"
           >
             <Plus size={18} /> Nouvelle Expertise
@@ -293,7 +346,7 @@ const OverviewView: React.FC<{ user: User, stats: any[], appointments: InternalA
       {showFloatingButton && (
         <button
           onClick={() => {
-            onOpenAdd();
+            onOpenExpertise();
             // Optionnel : scroll vers le haut pour voir le bouton original
             buttonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }}
