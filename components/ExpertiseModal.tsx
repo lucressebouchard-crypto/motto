@@ -235,6 +235,54 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
     ));
   };
 
+  const captureFromCamera = (type: 'photo' | 'video'): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = type === 'photo' ? 'image/*' : 'video/*';
+      input.capture = type === 'photo' ? 'environment' : 'environment'; // 'environment' pour caméra arrière
+      
+      input.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+          resolve(file);
+        } else {
+          reject(new Error('Aucun fichier sélectionné'));
+        }
+      };
+      
+      input.oncancel = () => {
+        reject(new Error('Capture annulée'));
+      };
+      
+      input.click();
+    });
+  };
+
+  const handleCapturePhoto = async (categoryId: string, pointId: string) => {
+    try {
+      const file = await captureFromCamera('photo');
+      await handleFileUpload(categoryId, pointId, file, 'photo');
+    } catch (error: any) {
+      if (error.message !== 'Capture annulée') {
+        console.error('Erreur lors de la capture photo:', error);
+        alert('Erreur lors de la capture de la photo');
+      }
+    }
+  };
+
+  const handleCaptureVideo = async (categoryId: string, pointId: string) => {
+    try {
+      const file = await captureFromCamera('video');
+      await handleFileUpload(categoryId, pointId, file, 'video');
+    } catch (error: any) {
+      if (error.message !== 'Capture annulée') {
+        console.error('Erreur lors de la capture vidéo:', error);
+        alert('Erreur lors de la capture de la vidéo');
+      }
+    }
+  };
+
   const handleFileUpload = async (
     categoryId: string, 
     pointId: string, 
@@ -720,7 +768,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
           </button>
           <button
             onClick={handleGenerateReport}
-            disabled={!vehicleData.make || !vehicleData.model || healthScore === 0}
+            disabled={!vehicleData.make || !vehicleData.model || categories.every(c => c.points.every(p => p.rating === null))}
             className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             <FileText size={18} />
