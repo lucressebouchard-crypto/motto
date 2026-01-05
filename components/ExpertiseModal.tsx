@@ -192,7 +192,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
     const newPoint: InspectionPoint = {
       id: `custom_${Date.now()}`,
       label: customLabel,
-      checked: false,
+      rating: null,
       custom: true,
       photos: [],
       videos: []
