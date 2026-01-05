@@ -288,6 +288,22 @@ const OverviewView: React.FC<{ user: User, stats: any[], appointments: InternalA
         </div>
       </div>
     </div>
+
+      {/* Floating Button - Appears when original button is not visible */}
+      {showFloatingButton && (
+        <button
+          onClick={() => {
+            onOpenAdd();
+            // Optionnel : scroll vers le haut pour voir le bouton original
+            buttonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 bg-indigo-600 text-white rounded-full p-4 sm:p-5 shadow-2xl shadow-indigo-500/50 hover:bg-indigo-700 active:scale-95 transition-all z-40 animate-in zoom-in-95 duration-300 border-4 border-white"
+          title="Nouvelle Expertise"
+        >
+          <Plus size={24} strokeWidth={3} />
+        </button>
+      )}
+    </>
   );
 };
 
