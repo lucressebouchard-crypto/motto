@@ -47,6 +47,16 @@ const steps = [
     description: 'Système de présence basé sur la dernière activité',
     file: 'supabase/setup-user-presence.sql',
   },
+  {
+    name: 'Expertises Table',
+    description: 'Table et système pour les expertises véhicules',
+    file: 'supabase/create-expertises-table.sql',
+  },
+  {
+    name: 'Expertise Storage Buckets',
+    description: 'Buckets de stockage pour médias et rapports PDF des expertises',
+    file: 'supabase/setup-expertise-storage.sql',
+  },
 ];
 
 let successCount = 0;
