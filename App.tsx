@@ -742,6 +742,8 @@ const AppContent: React.FC = () => {
                 user={currentUser} 
                 onLogout={handleLogout} 
                 onExit={() => setActiveTab('home')}
+                quickCreateAction={mechanicQuickCreateAction}
+                onQuickCreateActionHandled={() => setMechanicQuickCreateAction(null)}
               />
             ) : (
               <Dashboard user={currentUser} listings={listings} onBoost={async (id) => {
