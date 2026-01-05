@@ -5,15 +5,25 @@ import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabase';
 import { User } from '../types';
 
+type RatingLevel = 'critical' | 'below_average' | 'average' | 'above_average' | 'excellent' | null;
+
 interface InspectionPoint {
   id: string;
   label: string;
-  checked: boolean;
+  rating: RatingLevel;
   custom: boolean;
   photos: string[];
   videos: string[];
   notes?: string;
 }
+
+const RATING_LEVELS: Array<{ value: RatingLevel; label: string; color: string; score: number }> = [
+  { value: 'critical', label: 'Critique', color: 'bg-red-100 text-red-700 border-red-300', score: 0 },
+  { value: 'below_average', label: 'Moins que la moyenne', color: 'bg-orange-100 text-orange-700 border-orange-300', score: 25 },
+  { value: 'average', label: 'Moyenne', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', score: 50 },
+  { value: 'above_average', label: 'Plus que la moyenne', color: 'bg-blue-100 text-blue-700 border-blue-300', score: 75 },
+  { value: 'excellent', label: 'Excellente', color: 'bg-green-100 text-green-700 border-green-300', score: 100 },
+];
 
 interface InspectionCategory {
   id: string;
@@ -65,10 +75,10 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       name: 'Moteur',
       weight: 5,
       points: [
-        { id: 'engine_oil', label: 'Niveau et qualité de l\'huile moteur', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'engine_coolant', label: 'Liquide de refroidissement', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'engine_belt', label: 'Courroie de distribution', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'engine_filter', label: 'Filtres (air, huile, carburant)', checked: false, custom: false, photos: [], videos: [] },
+        { id: 'engine_oil', label: 'Niveau et qualité de l\'huile moteur', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'engine_coolant', label: 'Liquide de refroidissement', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'engine_belt', label: 'Courroie de distribution', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'engine_filter', label: 'Filtres (air, huile, carburant)', rating: null, custom: false, photos: [], videos: [] },
       ]
     },
     {
@@ -76,10 +86,10 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       name: 'Carrosserie',
       weight: 3,
       points: [
-        { id: 'body_paint', label: 'État de la peinture', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'body_dents', label: 'Bosses et rayures', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'body_rust', label: 'Corrosion/rouille', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'body_glass', label: 'Vitres et pare-brise', checked: false, custom: false, photos: [], videos: [] },
+        { id: 'body_paint', label: 'État de la peinture', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'body_dents', label: 'Bosses et rayures', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'body_rust', label: 'Corrosion/rouille', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'body_glass', label: 'Vitres et pare-brise', rating: null, custom: false, photos: [], videos: [] },
       ]
     },
     {
@@ -87,10 +97,10 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       name: 'Électronique',
       weight: 4,
       points: [
-        { id: 'elec_battery', label: 'Batterie et charge', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'elec_lights', label: 'Éclairage (phares, feux)', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'elec_dashboard', label: 'Tableau de bord et indicateurs', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'elec_computer', label: 'Calculateur et codes erreur', checked: false, custom: false, photos: [], videos: [] },
+        { id: 'elec_battery', label: 'Batterie et charge', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'elec_lights', label: 'Éclairage (phares, feux)', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'elec_dashboard', label: 'Tableau de bord et indicateurs', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'elec_computer', label: 'Calculateur et codes erreur', rating: null, custom: false, photos: [], videos: [] },
       ]
     },
     {
@@ -98,10 +108,10 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       name: 'Pneumatiques',
       weight: 4,
       points: [
-        { id: 'tire_tread', label: 'Profondeur de la bande de roulement', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'tire_pressure', label: 'Pression des pneus', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'tire_wear', label: 'Usure inégale', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'tire_damage', label: 'Dommages visibles', checked: false, custom: false, photos: [], videos: [] },
+        { id: 'tire_tread', label: 'Profondeur de la bande de roulement', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'tire_pressure', label: 'Pression des pneus', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'tire_wear', label: 'Usure inégale', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'tire_damage', label: 'Dommages visibles', rating: null, custom: false, photos: [], videos: [] },
       ]
     },
     {
@@ -109,10 +119,10 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       name: 'Suspension & Freinage',
       weight: 4,
       points: [
-        { id: 'susp_shocks', label: 'Amortisseurs', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'susp_brakes', label: 'Plaquettes et disques de frein', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'susp_brake_fluid', label: 'Liquide de frein', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'susp_alignment', label: 'Géométrie et alignement', checked: false, custom: false, photos: [], videos: [] },
+        { id: 'susp_shocks', label: 'Amortisseurs', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'susp_brakes', label: 'Plaquettes et disques de frein', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'susp_brake_fluid', label: 'Liquide de frein', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'susp_alignment', label: 'Géométrie et alignement', rating: null, custom: false, photos: [], videos: [] },
       ]
     },
     {
@@ -120,9 +130,9 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       name: 'Intérieur',
       weight: 2,
       points: [
-        { id: 'int_seats', label: 'Sièges et tapis', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'int_controls', label: 'Commandes et boutons', checked: false, custom: false, photos: [], videos: [] },
-        { id: 'int_ac', label: 'Climatisation/chauffage', checked: false, custom: false, photos: [], videos: [] },
+        { id: 'int_seats', label: 'Sièges et tapis', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'int_controls', label: 'Commandes et boutons', rating: null, custom: false, photos: [], videos: [] },
+        { id: 'int_ac', label: 'Climatisation/chauffage', rating: null, custom: false, photos: [], videos: [] },
       ]
     }
   ]);
@@ -153,15 +163,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         newRecommendations.push(`📋 ${category.name}: Contrôles recommandés (${Math.round(categoryScore)}% OK)`);
       }
 
-      // Vérifier les points non cochés pour des recommandations spécifiques
-      category.points.forEach(point => {
-        if (!point.checked && !point.custom) {
-          // Les points critiques ont des recommandations spécifiques
-          if (point.id.includes('belt') || point.id.includes('brake')) {
-            newRecommendations.push(`🔧 ${point.label}: Inspection urgente recommandée`);
-          }
-        }
-      });
+      // Les points critiques sont déjà traités dans la boucle des notes ci-dessus
     });
 
     const finalScore = totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 0;
@@ -169,13 +171,13 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
     setRecommendations(newRecommendations);
   };
 
-  const togglePoint = (categoryId: string, pointId: string) => {
+  const setPointRating = (categoryId: string, pointId: string, rating: RatingLevel) => {
     setCategories(prev => prev.map(category => {
       if (category.id === categoryId) {
         return {
           ...category,
           points: category.points.map(point => 
-            point.id === pointId ? { ...point, checked: !point.checked } : point
+            point.id === pointId ? { ...point, rating } : point
           )
         };
       }
@@ -341,9 +343,19 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         yPos = 20;
       }
 
-      const checkedPoints = category.points.filter(p => p.checked).length;
-      const totalPoints = category.points.length;
-      const categoryScore = totalPoints > 0 ? Math.round((checkedPoints / totalPoints) * 100) : 0;
+      // Calculer le score de la catégorie basé sur les notes
+      let categoryTotalScore = 0;
+      let ratedPointsCount = 0;
+      category.points.forEach(point => {
+        if (point.rating !== null) {
+          const ratingData = RATING_LEVELS.find(r => r.value === point.rating);
+          if (ratingData) {
+            categoryTotalScore += ratingData.score;
+            ratedPointsCount++;
+          }
+        }
+      });
+      const categoryScore = ratedPointsCount > 0 ? Math.round(categoryTotalScore / ratedPointsCount) : 0;
 
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -354,10 +366,20 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       category.points.forEach(point => {
-        const status = point.checked ? '✓' : '✗';
-        const statusColor = point.checked ? [34, 197, 94] : [239, 68, 68];
-        doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
-        doc.text(`${status} ${point.label}`, 25, yPos);
+        if (point.rating !== null) {
+          const ratingData = RATING_LEVELS.find(r => r.value === point.rating);
+          const ratingLabel = ratingData?.label || 'Non noté';
+          const statusColor = ratingData ? 
+            (ratingData.score >= 75 ? [34, 197, 94] : 
+             ratingData.score >= 50 ? [251, 191, 36] : 
+             ratingData.score >= 25 ? [239, 127, 26] : 
+             [239, 68, 68]) : [128, 128, 128];
+          doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
+          doc.text(`${ratingLabel}: ${point.label}`, 25, yPos);
+        } else {
+          doc.setTextColor(128, 128, 128);
+          doc.text(`Non noté: ${point.label}`, 25, yPos);
+        }
         yPos += 5;
       });
       yPos += 5;
@@ -538,26 +560,44 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-black text-gray-900">{category.name}</h3>
                 <span className="text-xs font-bold text-gray-500">
-                  {category.points.filter(p => p.checked).length}/{category.points.length} OK
+                  {category.points.filter(p => p.rating !== null).length}/{category.points.length} Notés
                 </span>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {category.points.map((point) => (
                   <div key={point.id} className="bg-white rounded-xl p-4 border border-gray-200">
                     <div className="flex items-start gap-3">
-                      <button
-                        onClick={() => togglePoint(category.id, point.id)}
-                        className={`mt-1 p-1 rounded-full transition-all ${
-                          point.checked ? 'text-green-600 bg-green-50' : 'text-gray-300 bg-gray-50'
-                        }`}
-                      >
-                        {point.checked ? <CheckCircle2 size={20} /> : <Circle size={20} />}
-                      </button>
                       <div className="flex-1 min-w-0">
-                        <p className={`font-medium ${point.checked ? 'text-gray-900 line-through' : 'text-gray-700'}`}>
+                        <p className="font-medium text-gray-900 mb-3">
                           {point.label}
                         </p>
+
+                        {/* Rating Buttons */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {RATING_LEVELS.map((level) => (
+                            <button
+                              key={level.value || 'null'}
+                              onClick={() => setPointRating(category.id, point.id, level.value)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
+                                point.rating === level.value
+                                  ? `${level.color} border-current scale-105 shadow-sm`
+                                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                              }`}
+                            >
+                              {level.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Selected Rating Display */}
+                        {point.rating && (
+                          <div className={`mb-3 px-3 py-2 rounded-lg ${RATING_LEVELS.find(r => r.value === point.rating)?.color || 'bg-gray-100'}`}>
+                            <span className="text-xs font-black">
+                              Note sélectionnée: {RATING_LEVELS.find(r => r.value === point.rating)?.label}
+                            </span>
+                          </div>
+                        )}
 
                         {/* Media Gallery */}
                         {(point.photos.length > 0 || point.videos.length > 0) && (
@@ -587,36 +627,20 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                           </div>
                         )}
 
-                        {/* Upload Buttons */}
-                        <div className="mt-2 flex gap-2">
-                          <label className="cursor-pointer">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(category.id, point.id, file, 'photo');
-                              }}
-                            />
-                            <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors">
-                              <Camera size={14} /> Photo
-                            </span>
-                          </label>
-                          <label className="cursor-pointer">
-                            <input
-                              type="file"
-                              accept="video/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(category.id, point.id, file, 'video');
-                              }}
-                            />
-                            <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors">
-                              <Video size={14} /> Vidéo
-                            </span>
-                          </label>
+                        {/* Capture Buttons (Camera only) */}
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => handleCapturePhoto(category.id, point.id)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors"
+                          >
+                            <Camera size={14} /> Prendre une photo
+                          </button>
+                          <button
+                            onClick={() => handleCaptureVideo(category.id, point.id)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors"
+                          >
+                            <Video size={14} /> Filmer une vidéo
+                          </button>
                         </div>
                       </div>
                       {point.custom && (
