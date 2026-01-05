@@ -163,9 +163,9 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
       )}
 
       {/* Main Content */}
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main className="flex-1 min-w-0 flex flex-col relative">
         {/* Mobile Header with Menu Button */}
-        <div className="lg:hidden bg-indigo-900 text-white p-6 sticky top-0 z-50 flex justify-between items-center shadow-lg">
+        <div className="lg:hidden bg-indigo-900 text-white p-6 fixed top-0 left-0 right-0 z-50 flex justify-between items-center shadow-lg">
           <div className="flex items-center gap-4">
              <button 
                onClick={() => setIsNavExpanded(true)} 
