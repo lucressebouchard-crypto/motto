@@ -1095,17 +1095,24 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                             ) : (
                               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                                 {/* Photos */}
-                                {Array.isArray(point.photos) && point.photos.length > 0 && point.photos.map((photo, idx) => (
-                                  <div key={`photo-${category.id}-${point.id}-${idx}-${photo.substring(0, 20)}`} className="relative group aspect-square">
-                                    <img 
-                                      src={photo} 
-                                      alt={`Photo ${idx + 1}`} 
-                                      className="w-full h-full object-cover rounded-lg shadow-md cursor-pointer hover:shadow-xl transition-shadow"
-                                      onClick={() => {
-                                        // Ouvrir en plein écran ou dans un viewer
-                                        window.open(photo, '_blank');
-                                      }}
-                                    />
+                                {Array.isArray(point.photos) && point.photos.length > 0 && point.photos.map((photo, idx) => {
+                                  console.log(`🖼️ Rendu photo ${idx + 1}/${point.photos.length} pour point ${point.id}:`, photo);
+                                  return (
+                                    <div key={`photo-${category.id}-${point.id}-${idx}-${photo.substring(0, 30)}-${galleryUpdateKey}`} className="relative group aspect-square">
+                                      <img 
+                                        src={photo} 
+                                        alt={`Photo ${idx + 1}`} 
+                                        className="w-full h-full object-cover rounded-lg shadow-md cursor-pointer hover:shadow-xl transition-shadow"
+                                        onLoad={() => console.log(`✅ Image chargée:`, photo)}
+                                        onError={(e) => {
+                                          console.error(`❌ Erreur chargement image:`, photo);
+                                          console.error('Erreur:', e);
+                                        }}
+                                        onClick={() => {
+                                          // Ouvrir en plein écran ou dans un viewer
+                                          window.open(photo, '_blank');
+                                        }}
+                                      />
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
