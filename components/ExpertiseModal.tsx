@@ -22,87 +22,22 @@ interface InspectionPoint {
   notes?: string;
 }
 
-const RATING_LEVELS: Array<{ value: RatingLevel; label: string; color: string; score: number; icon: React.ReactNode; bgGradient: string }> = [
-  { 
-    value: 'critical', 
-    label: 'Critique', 
-    color: 'bg-red-500 text-white border-red-600', 
-    score: 0,
-    icon: <AlertTriangle size={16} className="inline" />,
-    bgGradient: 'from-red-50 to-red-100'
-  },
-  { 
-    value: 'below_average', 
-    label: 'Moins que la moyenne', 
-    color: 'bg-orange-500 text-white border-orange-600', 
-    score: 25,
-    icon: <MinusCircle size={16} className="inline" />,
-    bgGradient: 'from-orange-50 to-orange-100'
-  },
-  { 
-    value: 'average', 
-    label: 'Moyenne', 
-    color: 'bg-amber-500 text-white border-amber-600', 
-    score: 50,
-    icon: <Clock size={16} className="inline" />,
-    bgGradient: 'from-amber-50 to-amber-100'
-  },
-  { 
-    value: 'above_average', 
-    label: 'Plus que la moyenne', 
-    color: 'bg-blue-500 text-white border-blue-600', 
-    score: 75,
-    icon: <CheckCircle size={16} className="inline" />,
-    bgGradient: 'from-blue-50 to-blue-100'
-  },
-  { 
-    value: 'excellent', 
-    label: 'Excellente', 
-    color: 'bg-green-500 text-white border-green-600', 
-    score: 100,
-    icon: <Sparkles size={16} className="inline" />,
-    bgGradient: 'from-green-50 to-green-100'
-  },
+// Configuration sans JSX (on utilisera des fonctions dans le composant)
+const RATING_LEVELS_CONFIG: Array<{ value: RatingLevel; label: string; color: string; score: number; bgGradient: string; iconName: string }> = [
+  { value: 'critical', label: 'Critique', color: 'bg-red-500 text-white border-red-600', score: 0, bgGradient: 'from-red-50 to-red-100', iconName: 'AlertTriangle' },
+  { value: 'below_average', label: 'Moins que la moyenne', color: 'bg-orange-500 text-white border-orange-600', score: 25, bgGradient: 'from-orange-50 to-orange-100', iconName: 'MinusCircle' },
+  { value: 'average', label: 'Moyenne', color: 'bg-amber-500 text-white border-amber-600', score: 50, bgGradient: 'from-amber-50 to-amber-100', iconName: 'Clock' },
+  { value: 'above_average', label: 'Plus que la moyenne', color: 'bg-blue-500 text-white border-blue-600', score: 75, bgGradient: 'from-blue-50 to-blue-100', iconName: 'CheckCircle' },
+  { value: 'excellent', label: 'Excellente', color: 'bg-green-500 text-white border-green-600', score: 100, bgGradient: 'from-green-50 to-green-100', iconName: 'Sparkles' },
 ];
 
-// Configuration des catégories avec icônes et couleurs
-const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; color: string; gradient: string; bgColor: string }> = {
-  engine: {
-    icon: <Engine size={24} />,
-    color: 'text-red-600',
-    gradient: 'from-red-50 via-orange-50 to-red-100',
-    bgColor: 'bg-red-500'
-  },
-  body: {
-    icon: <Car size={24} />,
-    color: 'text-blue-600',
-    gradient: 'from-blue-50 via-indigo-50 to-blue-100',
-    bgColor: 'bg-blue-500'
-  },
-  electronics: {
-    icon: <Zap size={24} />,
-    color: 'text-yellow-600',
-    gradient: 'from-yellow-50 via-amber-50 to-yellow-100',
-    bgColor: 'bg-yellow-500'
-  },
-  tires: {
-    icon: <CircleDot size={24} />,
-    color: 'text-purple-600',
-    gradient: 'from-purple-50 via-pink-50 to-purple-100',
-    bgColor: 'bg-purple-500'
-  },
-  suspension: {
-    icon: <Settings size={24} />,
-    color: 'text-indigo-600',
-    gradient: 'from-indigo-50 via-purple-50 to-indigo-100',
-    bgColor: 'bg-indigo-500'
-  },
-  interior: {
-    icon: <Wrench size={24} />,
-    color: 'text-teal-600',
-    gradient: 'from-teal-50 via-cyan-50 to-teal-100',
-    bgColor: 'bg-teal-500'
-  }
+const CATEGORY_CONFIG_DATA: Record<string, { color: string; gradient: string; bgColor: string; iconName: string }> = {
+  engine: { color: 'text-red-600', gradient: 'from-red-50 via-orange-50 to-red-100', bgColor: 'bg-red-500', iconName: 'Engine' },
+  body: { color: 'text-blue-600', gradient: 'from-blue-50 via-indigo-50 to-blue-100', bgColor: 'bg-blue-500', iconName: 'Car' },
+  electronics: { color: 'text-yellow-600', gradient: 'from-yellow-50 via-amber-50 to-yellow-100', bgColor: 'bg-yellow-500', iconName: 'Zap' },
+  tires: { color: 'text-purple-600', gradient: 'from-purple-50 via-pink-50 to-purple-100', bgColor: 'bg-purple-500', iconName: 'CircleDot' },
+  suspension: { color: 'text-indigo-600', gradient: 'from-indigo-50 via-purple-50 to-indigo-100', bgColor: 'bg-indigo-500', iconName: 'Settings' },
+  interior: { color: 'text-teal-600', gradient: 'from-teal-50 via-cyan-50 to-teal-100', bgColor: 'bg-teal-500', iconName: 'Wrench' },
 };
 
 interface InspectionCategory {
@@ -148,6 +83,36 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   vehicle = { make: '', model: '', year: undefined, plateNumber: '' },
   buyer
 }) => {
+  // Obtenir les niveaux de rating avec icônes React
+  const RATING_LEVELS = React.useMemo(() => RATING_LEVELS_CONFIG.map(config => ({
+    ...config,
+    icon: config.iconName === 'AlertTriangle' ? <AlertTriangle size={16} className="inline" /> :
+          config.iconName === 'MinusCircle' ? <MinusCircle size={16} className="inline" /> :
+          config.iconName === 'Clock' ? <Clock size={16} className="inline" /> :
+          config.iconName === 'CheckCircle' ? <CheckCircle size={16} className="inline" /> :
+          <Sparkles size={16} className="inline" />
+  })), []);
+
+  // Obtenir la configuration des catégories avec icônes React
+  const CATEGORY_CONFIG = React.useMemo(() => {
+    const iconMap: Record<string, React.ReactNode> = {
+      Engine: <Engine size={24} />,
+      Car: <Car size={24} />,
+      Zap: <Zap size={24} />,
+      CircleDot: <CircleDot size={24} />,
+      Settings: <Settings size={24} />,
+      Wrench: <Wrench size={24} />,
+    };
+    
+    return Object.entries(CATEGORY_CONFIG_DATA).reduce((acc, [key, config]) => {
+      acc[key] = {
+        ...config,
+        icon: iconMap[config.iconName] || <Settings size={24} />
+      };
+      return acc;
+    }, {} as Record<string, { icon: React.ReactNode; color: string; gradient: string; bgColor: string }>);
+  }, []);
+
   const [vehicleData, setVehicleData] = useState(vehicle);
   const [categories, setCategories] = useState<InspectionCategory[]>([
     {
@@ -218,6 +183,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   ]);
   const [customPointInput, setCustomPointInput] = useState<Record<string, string>>({});
   const [healthScore, setHealthScore] = useState<number>(0);
+  const [displayScore, setDisplayScore] = useState<number>(0);
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
