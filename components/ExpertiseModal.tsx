@@ -1004,32 +1004,36 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                 </>
               )}
             </div>
+
+            {/* Bouton Réinitialiser dans la section du score */}
+            <div className="mt-6 pt-6 border-t-2 border-white/30">
+              <button
+                onClick={handleReset}
+                className="w-full px-6 py-3 border-2 border-white/50 rounded-2xl font-black text-gray-800 bg-white/60 hover:bg-white/80 hover:border-white transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-100 flex items-center justify-center gap-2 uppercase tracking-wide text-sm"
+              >
+                <RefreshCw size={18} />
+                Réinitialiser l'expertise
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="mt-8 flex gap-4 justify-between sticky bottom-0 bg-gray-50 pt-6 pb-4 border-t-2 border-gray-200">
-          <button
-            onClick={handleReset}
-            className="px-6 py-4 border-2 border-gray-300 rounded-2xl font-black text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 flex items-center gap-2 uppercase tracking-wide text-sm"
-          >
-            <RefreshCw size={18} />
-            Réinitialiser
-          </button>
-          <div className="flex gap-4">
+        {/* Actions - Boutons Annuler et Générer en bas, optimisés pour mobile */}
+        <div className="mt-8 sticky bottom-0 bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/20 pt-6 pb-6 sm:pb-8 border-t-2 border-gray-200 shadow-lg">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full">
             <button
               onClick={onClose}
-              className="px-8 py-4 border-2 border-gray-400 rounded-2xl font-black text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200 hover:border-gray-500 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 uppercase tracking-wide text-sm"
+              className="flex-1 sm:flex-none px-6 sm:px-8 py-4 border-2 border-gray-400 rounded-2xl font-black text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200 hover:border-gray-500 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 uppercase tracking-wide text-sm sm:text-base"
             >
               Annuler
             </button>
             <button
               onClick={handleGenerateReport}
               disabled={!vehicleData.make || !vehicleData.model || categories.every(c => c.points.every(p => p.rating === null))}
-              className="px-8 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest hover:from-indigo-700 hover:via-purple-700 hover:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl hover:shadow-2xl transform hover:scale-105 active:scale-95 flex items-center gap-3 text-sm disabled:transform-none"
+              className="flex-1 sm:flex-[2] px-6 sm:px-8 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest hover:from-indigo-700 hover:via-purple-700 hover:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl hover:shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 text-sm sm:text-base disabled:transform-none"
             >
               <FileText size={20} />
-              Générer Rapport PDF
+              <span className="whitespace-nowrap">Générer Rapport PDF</span>
             </button>
           </div>
         </div>
