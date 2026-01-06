@@ -394,24 +394,15 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         });
       }, 50);
       
-      // Upload en arrière-plan
+      // Upload en arrière-plan - NE PAS retirer la preview en cas d'erreur
       handleFileUpload(categoryId, pointId, file, 'photo').then(() => {
         console.log('✅ [UPLOAD] Upload terminé avec succès');
       }).catch(uploadError => {
         console.error('❌ [UPLOAD] Erreur upload:', uploadError);
-        // Retirer la preview en cas d'erreur
-        setCategories(prev => prev.map(cat => {
-          if (cat.id !== categoryId) return cat;
-          return {
-            ...cat,
-            points: cat.points.map(pt => {
-              if (pt.id !== pointId) return pt;
-              const photos = (Array.isArray(pt.photos) ? pt.photos : []).filter(p => p !== blobUrl);
-              return { ...pt, photos };
-            })
-          };
-        }));
-        alert(`Erreur lors de l'upload: ${uploadError.message}`);
+        // Garder la preview locale même en cas d'erreur
+        // Afficher un avertissement mais ne pas supprimer la photo
+        console.warn('⚠️ [UPLOAD] Erreur upload mais preview locale conservée');
+        // L'utilisateur peut toujours voir et utiliser la photo localement
       });
       
     } catch (error: any) {
@@ -466,24 +457,15 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         return newKey;
       });
       
-      // Upload en arrière-plan
+      // Upload en arrière-plan - NE PAS retirer la preview en cas d'erreur
       handleFileUpload(categoryId, pointId, file, 'video').then(() => {
         console.log('✅ [UPLOAD] Upload terminé avec succès');
       }).catch(uploadError => {
         console.error('❌ [UPLOAD] Erreur upload:', uploadError);
-        // Retirer la preview en cas d'erreur
-        setCategories(prev => prev.map(cat => {
-          if (cat.id !== categoryId) return cat;
-          return {
-            ...cat,
-            points: cat.points.map(pt => {
-              if (pt.id !== pointId) return pt;
-              const videos = (Array.isArray(pt.videos) ? pt.videos : []).filter(v => v !== blobUrl);
-              return { ...pt, videos };
-            })
-          };
-        }));
-        alert(`Erreur lors de l'upload: ${uploadError.message}`);
+        // Garder la preview locale même en cas d'erreur
+        // Afficher un avertissement mais ne pas supprimer la vidéo
+        console.warn('⚠️ [UPLOAD] Erreur upload mais preview locale conservée');
+        // L'utilisateur peut toujours voir et utiliser la vidéo localement
       });
       
     } catch (error: any) {

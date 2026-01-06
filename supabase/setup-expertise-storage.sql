@@ -12,12 +12,19 @@ VALUES ('expertise-reports', 'expertise-reports', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Politiques pour expertise-media
+-- Permettre aux mécaniciens authentifiés d'uploader dans leur dossier
 CREATE POLICY IF NOT EXISTS "Mechanics can upload expertise media"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (
   bucket_id = 'expertise-media' AND
-  (storage.foldername(name))[1] = auth.uid()::text
+  (
+    -- Permettre si le premier dossier est l'ID de l'utilisateur
+    (storage.foldername(name))[1] = auth.uid()::text
+    OR
+    -- Permettre si le chemin contient l'ID de l'utilisateur (cas: expertise/userid/filename)
+    name LIKE auth.uid()::text || '/%'
+  )
 );
 
 CREATE POLICY IF NOT EXISTS "Public can view expertise media"
