@@ -921,33 +921,106 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                           </div>
                         )}
 
-                        {/* Media Gallery */}
-                        {(point.photos.length > 0 || point.videos.length > 0) && (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {point.photos.map((photo, idx) => (
-                              <div key={idx} className="relative group">
-                                <img src={photo} alt={`Photo ${idx + 1}`} className="w-20 h-20 object-cover rounded-lg" />
-                                <button
-                                  onClick={() => removeMedia(category.id, point.id, photo, 'photo')}
-                                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            ))}
-                            {point.videos.map((video, idx) => (
-                              <div key={idx} className="relative group">
-                                <video src={video} className="w-20 h-20 object-cover rounded-lg" />
-                                <button
-                                  onClick={() => removeMedia(category.id, point.id, video, 'video')}
-                                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            ))}
+                        {/* Media Gallery - Toujours visible pour permettre l'ajout et la visualisation */}
+                        <div className="mt-4 space-y-3">
+                          {/* En-tête de la galerie */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Camera size={16} className="text-gray-500" />
+                              <span className="text-xs font-black text-gray-600 uppercase tracking-wide">
+                                Galerie ({point.photos.length + point.videos.length})
+                              </span>
+                            </div>
+                            {(point.photos.length > 0 || point.videos.length > 0) && (
+                              <button
+                                onClick={() => {
+                                  // Scroll vers la galerie pour la rendre visible
+                                  const element = document.querySelector(`[data-gallery="${category.id}-${point.id}"]`);
+                                  element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                }}
+                                className="text-xs font-bold text-indigo-600 hover:text-indigo-700"
+                              >
+                                Voir tout
+                              </button>
+                            )}
                           </div>
-                        )}
+
+                          {/* Galerie de médias */}
+                          <div 
+                            data-gallery={`${category.id}-${point.id}`}
+                            className={`bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border-2 border-gray-200 ${point.photos.length === 0 && point.videos.length === 0 ? 'border-dashed' : ''}`}
+                          >
+                            {point.photos.length === 0 && point.videos.length === 0 ? (
+                              <div className="text-center py-4">
+                                <p className="text-xs text-gray-400 font-medium italic">
+                                  Aucun média pour le moment
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                                {/* Photos */}
+                                {point.photos.map((photo, idx) => (
+                                  <div key={`photo-${idx}`} className="relative group aspect-square">
+                                    <img 
+                                      src={photo} 
+                                      alt={`Photo ${idx + 1}`} 
+                                      className="w-full h-full object-cover rounded-lg shadow-md cursor-pointer hover:shadow-xl transition-shadow"
+                                      onClick={() => {
+                                        // Ouvrir en plein écran ou dans un viewer
+                                        window.open(photo, '_blank');
+                                      }}
+                                    />
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeMedia(category.id, point.id, photo, 'photo');
+                                      }}
+                                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:bg-red-600 hover:scale-110"
+                                      title="Supprimer"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                    <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                      📷
+                                    </div>
+                                  </div>
+                                ))}
+                                
+                                {/* Vidéos */}
+                                {point.videos.map((video, idx) => (
+                                  <div key={`video-${idx}`} className="relative group aspect-square">
+                                    <video 
+                                      src={video} 
+                                      className="w-full h-full object-cover rounded-lg shadow-md cursor-pointer hover:shadow-xl transition-shadow"
+                                      onClick={() => {
+                                        // Ouvrir en plein écran ou dans un viewer
+                                        window.open(video, '_blank');
+                                      }}
+                                    />
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeMedia(category.id, point.id, video, 'video');
+                                      }}
+                                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:bg-red-600 hover:scale-110"
+                                      title="Supprimer"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <div className="bg-black/60 rounded-full p-2 group-hover:bg-black/80 transition-colors">
+                                        <Video size={20} className="text-white" />
+                                      </div>
+                                    </div>
+                                    <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                      🎥
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
                         {/* Capture Buttons (Camera only) */}
                         <div className="mt-3 flex gap-2">
