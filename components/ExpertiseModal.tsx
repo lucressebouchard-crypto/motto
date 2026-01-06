@@ -712,8 +712,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         </div>
       </div>
 
-      {/* Contenu scrollable - Avec padding-top pour compenser le header fixe */}
-      <div className="flex-1 overflow-y-auto pt-[88px]">
+      {/* Contenu scrollable - Avec padding-top pour compenser le header fixe et padding-bottom pour les boutons */}
+      <div className="flex-1 overflow-y-auto pt-[88px] pb-32 sm:pb-28">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 
         {/* Vehicle Info */}
