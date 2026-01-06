@@ -1114,36 +1114,45 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                                 })()}
                                 
                                 {/* Vidéos */}
-                                {Array.isArray(point.videos) && point.videos.length > 0 && point.videos.map((video, idx) => (
-                                  <div key={`video-${category.id}-${point.id}-${idx}-${video.substring(0, 20)}`} className="relative group aspect-square">
-                                    <video 
-                                      src={video} 
-                                      className="w-full h-full object-cover rounded-lg shadow-md cursor-pointer hover:shadow-xl transition-shadow"
-                                      onClick={() => {
-                                        // Ouvrir en plein écran ou dans un viewer
-                                        window.open(video, '_blank');
-                                      }}
-                                    />
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeMedia(category.id, point.id, video, 'video');
-                                      }}
-                                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:bg-red-600 hover:scale-110"
-                                      title="Supprimer"
+                                {(() => {
+                                  const videos = Array.isArray(point.videos) ? point.videos : [];
+                                  console.log(`🎥 [RENDER] Rendu galerie vidéos - Point: ${point.id}, Nombre: ${videos.length}, Clé: ${galleryUpdateKey}`);
+                                  return videos.length > 0 ? videos.map((video, idx) => (
+                                    <div 
+                                      key={`video-${category.id}-${point.id}-${idx}-${Date.now()}-${galleryUpdateKey}`} 
+                                      className="relative group aspect-square bg-gray-200 rounded-lg overflow-hidden"
                                     >
-                                      <Trash2 size={14} />
-                                    </button>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <div className="bg-black/60 rounded-full p-2 group-hover:bg-black/80 transition-colors">
-                                        <Video size={20} className="text-white" />
+                                      <video 
+                                        src={video} 
+                                        className="w-full h-full object-cover cursor-pointer"
+                                        onLoadedData={() => console.log(`✅ [VIDEO] Vidéo ${idx + 1} chargée:`, video.substring(0, 50))}
+                                        onError={(e) => {
+                                          console.error(`❌ [VIDEO] Erreur chargement vidéo ${idx + 1}:`, video);
+                                          (e.target as HTMLVideoElement).style.display = 'none';
+                                        }}
+                                        onClick={() => window.open(video, '_blank')}
+                                      />
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          removeMedia(category.id, point.id, video, 'video');
+                                        }}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                                        title="Supprimer"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="bg-black/60 rounded-full p-2">
+                                          <Video size={20} className="text-white" />
+                                        </div>
+                                      </div>
+                                      <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                        🎥
                                       </div>
                                     </div>
-                                    <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                      🎥
-                                    </div>
-                                  </div>
-                                ))}
+                                  )) : null;
+                                })()}
                               </div>
                             )}
                           </div>
