@@ -376,12 +376,14 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         return newCategories;
       });
       
-      // Forcer re-render IMMÉDIAT
-      setGalleryUpdateKey(k => {
-        const newKey = k + 1;
-        console.log('📸 [RENDER] Force re-render avec clé:', newKey);
-        return newKey;
-      });
+      // Forcer re-render avec délai pour garantir la mise à jour
+      setTimeout(() => {
+        setGalleryUpdateKey(k => {
+          const newKey = k + 1;
+          console.log('📸 [RENDER] Force re-render avec clé:', newKey);
+          return newKey;
+        });
+      }, 50);
       
       // Upload en arrière-plan
       handleFileUpload(categoryId, pointId, file, 'photo').then(() => {
