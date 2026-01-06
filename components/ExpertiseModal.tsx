@@ -184,6 +184,13 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       ]
     }
   ]);
+  
+  // Force re-render quand les catégories changent
+  useEffect(() => {
+    console.log('🔄 [EFFECT] Catégories mises à jour, trigger re-render');
+    setRenderTrigger(prev => prev + 1);
+  }, [categories]);
+  
   const [customPointInput, setCustomPointInput] = useState<Record<string, string>>({});
   const [healthScore, setHealthScore] = useState<number>(0);
   const [displayScore, setDisplayScore] = useState<number>(0);
