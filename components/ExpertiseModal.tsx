@@ -369,14 +369,25 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
   const handleCaptureVideo = async (categoryId: string, pointId: string) => {
     try {
-      console.log('🎥 Démarrage de la capture vidéo...');
+      console.log('🎥 Démarrage de la capture vidéo pour:', categoryId, pointId);
+      
+      // Trouver le point actuel pour debug
+      const currentCategory = categories.find(c => c.id === categoryId);
+      const currentPoint = currentCategory?.points.find(p => p.id === pointId);
+      console.log('🎥 Point actuel - Vidéos:', currentPoint?.videos.length || 0);
+      
       const file = await captureFromCamera('video');
       console.log('🎥 Fichier capturé:', file.name, file.type, file.size);
       
-      // Afficher un message de chargement
-      const loadingMsg = 'Téléchargement de la vidéo...';
-      
       await handleFileUpload(categoryId, pointId, file, 'video');
+      
+      // Vérifier après l'upload
+      setTimeout(() => {
+        const updatedCategory = categories.find(c => c.id === categoryId);
+        const updatedPoint = updatedCategory?.points.find(p => p.id === pointId);
+        console.log('🎥 Point après upload - Vidéos:', updatedPoint?.videos.length || 0);
+      }, 100);
+      
       console.log('✅ Vidéo téléchargée avec succès');
     } catch (error: any) {
       if (error.message !== 'Capture annulée') {
@@ -439,26 +450,43 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
       const url = urlData.publicUrl;
       console.log(`✅ URL obtenue: ${url}`);
+      console.log(`📝 Mise à jour de l'état pour categoryId: ${categoryId}, pointId: ${pointId}, type: ${type}`);
 
       // Mettre à jour l'état avec la nouvelle URL
-      setCategories(prev => prev.map(category => {
-        if (category.id === categoryId) {
-          return {
-            ...category,
-            points: category.points.map(point => {
-              if (point.id === pointId) {
-                if (type === 'photo') {
-                  return { ...point, photos: [...point.photos, url] };
-                } else {
-                  return { ...point, videos: [...point.videos, url] };
+      setCategories(prev => {
+        const updated = prev.map(category => {
+          if (category.id === categoryId) {
+            return {
+              ...category,
+              points: category.points.map(point => {
+                if (point.id === pointId) {
+                  const currentPhotos = point.photos || [];
+                  const currentVideos = point.videos || [];
+                  
+                  if (type === 'photo') {
+                    const newPhotos = [...currentPhotos, url];
+                    console.log(`📸 Avant: ${currentPhotos.length} photos, Après: ${newPhotos.length} photos`);
+                    return { ...point, photos: newPhotos };
+                  } else {
+                    const newVideos = [...currentVideos, url];
+                    console.log(`🎥 Avant: ${currentVideos.length} vidéos, Après: ${newVideos.length} vidéos`);
+                    return { ...point, videos: newVideos };
+                  }
                 }
-              }
-              return point;
-            })
-          };
-        }
-        return category;
-      }));
+                return point;
+              })
+            };
+          }
+          return category;
+        });
+        
+        // Vérifier la mise à jour
+        const updatedCategory = updated.find(c => c.id === categoryId);
+        const updatedPoint = updatedCategory?.points.find(p => p.id === pointId);
+        console.log(`✅ État mis à jour - Photos: ${updatedPoint?.photos.length || 0}, Vidéos: ${updatedPoint?.videos.length || 0}`);
+        
+        return updated;
+      });
 
       console.log(`${type === 'photo' ? 'Photo' : 'Vidéo'} ajoutée avec succès au point`);
     } catch (error: any) {
