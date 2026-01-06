@@ -961,10 +961,10 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                             <div className="flex items-center gap-2">
                               <Camera size={16} className="text-gray-500" />
                               <span className="text-xs font-black text-gray-600 uppercase tracking-wide">
-                                Galerie ({point.photos.length + point.videos.length})
+                                Galerie ({((Array.isArray(point.photos) ? point.photos.length : 0) + (Array.isArray(point.videos) ? point.videos.length : 0))})
                               </span>
                             </div>
-                            {(point.photos.length > 0 || point.videos.length > 0) && (
+                            {((Array.isArray(point.photos) && point.photos.length > 0) || (Array.isArray(point.videos) && point.videos.length > 0)) && (
                               <button
                                 onClick={() => {
                                   // Scroll vers la galerie pour la rendre visible
@@ -992,8 +992,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                             ) : (
                               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                                 {/* Photos */}
-                                {point.photos.map((photo, idx) => (
-                                  <div key={`photo-${idx}`} className="relative group aspect-square">
+                                {Array.isArray(point.photos) && point.photos.length > 0 && point.photos.map((photo, idx) => (
+                                  <div key={`photo-${category.id}-${point.id}-${idx}-${photo.substring(0, 20)}`} className="relative group aspect-square">
                                     <img 
                                       src={photo} 
                                       alt={`Photo ${idx + 1}`} 
@@ -1020,8 +1020,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                                 ))}
                                 
                                 {/* Vidéos */}
-                                {point.videos.map((video, idx) => (
-                                  <div key={`video-${idx}`} className="relative group aspect-square">
+                                {Array.isArray(point.videos) && point.videos.length > 0 && point.videos.map((video, idx) => (
+                                  <div key={`video-${category.id}-${point.id}-${idx}-${video.substring(0, 20)}`} className="relative group aspect-square">
                                     <video 
                                       src={video} 
                                       className="w-full h-full object-cover rounded-lg shadow-md cursor-pointer hover:shadow-xl transition-shadow"
