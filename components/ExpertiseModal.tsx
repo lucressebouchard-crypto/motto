@@ -237,7 +237,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
     const finalScore = totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 0;
     setHealthScore(finalScore);
     setRecommendations(newRecommendations);
-  };
+  }, [categories, RATING_LEVELS]);
 
   const setPointRating = (categoryId: string, pointId: string, rating: RatingLevel) => {
     setCategories(prev => prev.map(category => {
