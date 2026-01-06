@@ -352,11 +352,61 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       const file = await captureFromCamera('photo');
       console.log('📸 Fichier capturé:', file.name, file.type, file.size);
       
-      // Afficher un message de chargement
-      const loadingMsg = 'Téléchargement de la photo...';
+      // Créer une preview locale immédiate
+      const localPreview = URL.createObjectURL(file);
+      console.log('📸 Preview locale créée:', localPreview);
       
-      await handleFileUpload(categoryId, pointId, file, 'photo');
-      console.log('✅ Photo téléchargée avec succès');
+      // Ajouter la preview locale immédiatement à l'état
+      setCategories(prev => {
+        const updated = prev.map(category => {
+          if (category.id === categoryId) {
+            return {
+              ...category,
+              points: category.points.map(point => {
+                if (point.id === pointId) {
+                  const currentPhotos = Array.isArray(point.photos) ? point.photos : [];
+                  console.log('📸 Ajout preview locale - Avant:', currentPhotos.length);
+                  return { ...point, photos: [...currentPhotos, localPreview] };
+                }
+                return point;
+              })
+            };
+          }
+          return category;
+        });
+        console.log('📸 Preview locale ajoutée à l\'état');
+        // Vérifier la mise à jour
+        const updatedCategory = updated.find(c => c.id === categoryId);
+        const updatedPoint = updatedCategory?.points.find(p => p.id === pointId);
+        console.log('📸 Vérification - Photos dans l\'état:', updatedPoint?.photos?.length || 0);
+        return updated;
+      });
+      
+      // Upload en arrière-plan puis remplacer la preview locale par l'URL distante
+      try {
+        await handleFileUpload(categoryId, pointId, file, 'photo');
+        console.log('✅ Photo téléchargée avec succès');
+      } catch (uploadError) {
+        // En cas d'erreur d'upload, retirer la preview locale
+        setCategories(prev => {
+          return prev.map(category => {
+            if (category.id === categoryId) {
+              return {
+                ...category,
+                points: category.points.map(point => {
+                  if (point.id === pointId) {
+                    const photos = Array.isArray(point.photos) ? point.photos : [];
+                    return { ...point, photos: photos.filter(p => p !== localPreview) };
+                  }
+                  return point;
+                })
+              };
+            }
+            return category;
+          });
+        });
+        throw uploadError;
+      }
     } catch (error: any) {
       if (error.message !== 'Capture annulée') {
         console.error('❌ Erreur lors de la capture photo:', error);
