@@ -369,11 +369,60 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
   const handleCaptureVideo = async (categoryId: string, pointId: string) => {
     try {
-      console.log('🎥 Démarrage de la capture vidéo pour:', categoryId, pointId);
+      console.log('🎥 Démarrage de la capture vidéo...');
       const file = await captureFromCamera('video');
       console.log('🎥 Fichier capturé:', file.name, file.type, file.size);
-      await handleFileUpload(categoryId, pointId, file, 'video');
-      console.log('✅ Vidéo téléchargée avec succès');
+      
+      // Créer une preview locale immédiate
+      const localPreview = URL.createObjectURL(file);
+      console.log('🎥 Preview locale créée:', localPreview);
+      
+      // Ajouter la preview locale immédiatement à l'état
+      setCategories(prev => {
+        const updated = prev.map(category => {
+          if (category.id === categoryId) {
+            return {
+              ...category,
+              points: category.points.map(point => {
+                if (point.id === pointId) {
+                  const currentVideos = Array.isArray(point.videos) ? point.videos : [];
+                  return { ...point, videos: [...currentVideos, localPreview] };
+                }
+                return point;
+              })
+            };
+          }
+          return category;
+        });
+        console.log('🎥 Preview locale ajoutée à l\'état');
+        return updated;
+      });
+      
+      // Upload en arrière-plan puis remplacer la preview locale par l'URL distante
+      try {
+        await handleFileUpload(categoryId, pointId, file, 'video');
+        console.log('✅ Vidéo téléchargée avec succès');
+      } catch (uploadError) {
+        // En cas d'erreur d'upload, retirer la preview locale
+        setCategories(prev => {
+          return prev.map(category => {
+            if (category.id === categoryId) {
+              return {
+                ...category,
+                points: category.points.map(point => {
+                  if (point.id === pointId) {
+                    const videos = Array.isArray(point.videos) ? point.videos : [];
+                    return { ...point, videos: videos.filter(v => v !== localPreview) };
+                  }
+                  return point;
+                })
+              };
+            }
+            return category;
+          });
+        });
+        throw uploadError;
+      }
     } catch (error: any) {
       if (error.message !== 'Capture annulée') {
         console.error('❌ Erreur lors de la capture vidéo:', error);
@@ -437,8 +486,9 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       console.log(`✅ URL obtenue: ${url}`);
       console.log(`📝 Mise à jour de l'état pour categoryId: ${categoryId}, pointId: ${pointId}, type: ${type}`);
 
-      // Mettre à jour l'état avec la nouvelle URL (en créant un nouvel objet pour forcer le re-render)
+      // Mettre à jour l'état avec l'URL distante (remplace la preview locale si elle existe)
       setCategories(prev => {
+        const updated = replaceLocalPreview(prev);
         const updated = prev.map(category => {
           if (category.id === categoryId) {
             const updatedPoints = category.points.map(point => {
