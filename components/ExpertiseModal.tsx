@@ -437,38 +437,58 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       console.log(`✅ URL obtenue: ${url}`);
       console.log(`📝 Mise à jour de l'état pour categoryId: ${categoryId}, pointId: ${pointId}, type: ${type}`);
 
-      // Mettre à jour l'état avec la nouvelle URL
+      // Mettre à jour l'état avec la nouvelle URL (en créant un nouvel objet pour forcer le re-render)
       setCategories(prev => {
         const updated = prev.map(category => {
           if (category.id === categoryId) {
+            const updatedPoints = category.points.map(point => {
+              if (point.id === pointId) {
+                const currentPhotos = Array.isArray(point.photos) ? point.photos : [];
+                const currentVideos = Array.isArray(point.videos) ? point.videos : [];
+                
+                if (type === 'photo') {
+                  const newPhotos = [...currentPhotos, url];
+                  console.log(`📸 Mise à jour photo - Avant: ${currentPhotos.length}, Après: ${newPhotos.length}, URL: ${url.substring(0, 50)}...`);
+                  // Créer un nouvel objet point avec les nouvelles photos
+                  return { 
+                    ...point, 
+                    photos: newPhotos 
+                  };
+                } else {
+                  const newVideos = [...currentVideos, url];
+                  console.log(`🎥 Mise à jour vidéo - Avant: ${currentVideos.length}, Après: ${newVideos.length}, URL: ${url.substring(0, 50)}...`);
+                  // Créer un nouvel objet point avec les nouvelles vidéos
+                  return { 
+                    ...point, 
+                    videos: newVideos 
+                  };
+                }
+              }
+              // Retourner le point tel quel si ce n'est pas le bon point
+              return point;
+            });
+            
+            // Créer une nouvelle catégorie avec les points mis à jour
             return {
               ...category,
-              points: category.points.map(point => {
-                if (point.id === pointId) {
-                  const currentPhotos = point.photos || [];
-                  const currentVideos = point.videos || [];
-                  
-                  if (type === 'photo') {
-                    const newPhotos = [...currentPhotos, url];
-                    console.log(`📸 Avant: ${currentPhotos.length} photos, Après: ${newPhotos.length} photos`);
-                    return { ...point, photos: newPhotos };
-                  } else {
-                    const newVideos = [...currentVideos, url];
-                    console.log(`🎥 Avant: ${currentVideos.length} vidéos, Après: ${newVideos.length} vidéos`);
-                    return { ...point, videos: newVideos };
-                  }
-                }
-                return point;
-              })
+              points: updatedPoints
             };
           }
+          // Retourner la catégorie telle quelle si ce n'est pas la bonne catégorie
           return category;
         });
         
-        // Vérifier la mise à jour
+        // Vérifier la mise à jour après le calcul
         const updatedCategory = updated.find(c => c.id === categoryId);
         const updatedPoint = updatedCategory?.points.find(p => p.id === pointId);
-        console.log(`✅ État mis à jour - Photos: ${updatedPoint?.photos.length || 0}, Vidéos: ${updatedPoint?.videos.length || 0}`);
+        if (updatedPoint) {
+          console.log(`✅ État mis à jour - Photos: ${updatedPoint.photos.length}, Vidéos: ${updatedPoint.videos.length}`);
+          if (type === 'photo') {
+            console.log(`📸 URLs photos:`, updatedPoint.photos);
+          } else {
+            console.log(`🎥 URLs vidéos:`, updatedPoint.videos);
+          }
+        }
         
         return updated;
       });
