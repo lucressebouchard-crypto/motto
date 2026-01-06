@@ -492,25 +492,24 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
           if (category.id === categoryId) {
             const updatedPoints = category.points.map(point => {
               if (point.id === pointId) {
-                const currentPhotos = Array.isArray(point.photos) ? point.photos : [];
-                const currentVideos = Array.isArray(point.videos) ? point.videos : [];
-                
                 if (type === 'photo') {
-                  const newPhotos = [...currentPhotos, url];
-                  console.log(`📸 Mise à jour photo - Avant: ${currentPhotos.length}, Après: ${newPhotos.length}, URL: ${url.substring(0, 50)}...`);
-                  // Créer un nouvel objet point avec les nouvelles photos
-                  return { 
-                    ...point, 
-                    photos: newPhotos 
-                  };
+                  const photos = Array.isArray(point.photos) ? point.photos : [];
+                  // Remplacer les previews locales (blob:) par l'URL distante
+                  const updatedPhotos = photos.map(p => (typeof p === 'string' && p.startsWith('blob:')) ? url : p);
+                  // Si l'URL n'est pas déjà présente, l'ajouter
+                  if (!updatedPhotos.includes(url)) {
+                    updatedPhotos.push(url);
+                  }
+                  console.log(`📸 Remplacement preview locale par URL distante. Photos: ${updatedPhotos.length}`);
+                  return { ...point, photos: updatedPhotos };
                 } else {
-                  const newVideos = [...currentVideos, url];
-                  console.log(`🎥 Mise à jour vidéo - Avant: ${currentVideos.length}, Après: ${newVideos.length}, URL: ${url.substring(0, 50)}...`);
-                  // Créer un nouvel objet point avec les nouvelles vidéos
-                  return { 
-                    ...point, 
-                    videos: newVideos 
-                  };
+                  const videos = Array.isArray(point.videos) ? point.videos : [];
+                  const updatedVideos = videos.map(v => (typeof v === 'string' && v.startsWith('blob:')) ? url : v);
+                  if (!updatedVideos.includes(url)) {
+                    updatedVideos.push(url);
+                  }
+                  console.log(`🎥 Remplacement preview locale par URL distante. Vidéos: ${updatedVideos.length}`);
+                  return { ...point, videos: updatedVideos };
                 }
               }
               // Retourner le point tel quel si ce n'est pas le bon point
