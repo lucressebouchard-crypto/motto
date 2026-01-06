@@ -284,13 +284,23 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
   const captureFromCamera = (type: 'photo' | 'video'): Promise<File> => {
     return new Promise((resolve, reject) => {
+      // Créer un input file temporaire
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = type === 'photo' ? 'image/*' : 'video/*';
-      input.capture = type === 'photo' ? 'environment' : 'environment'; // 'environment' pour caméra arrière
+      
+      // Utiliser l'attribut capture pour forcer la caméra (mobile)
+      // 'environment' = caméra arrière, 'user' = caméra avant
+      input.setAttribute('capture', 'environment');
+      
+      // Nettoyer après utilisation
+      const cleanup = () => {
+        input.remove();
+      };
       
       input.onchange = (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
+        cleanup();
         if (file) {
           resolve(file);
         } else {
@@ -298,9 +308,39 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         }
       };
       
-      input.oncancel = () => {
+      // Gérer l'annulation
+      const handleCancel = () => {
+        cleanup();
         reject(new Error('Capture annulée'));
       };
+      
+      // Pour les navigateurs qui supportent oncancel
+      input.oncancel = handleCancel;
+      
+      // Alternative: détecter si aucun fichier après un délai
+      const timeout = setTimeout(() => {
+        if (!input.files || input.files.length === 0) {
+          // Vérifier après un court délai si le dialogue est toujours ouvert
+          setTimeout(() => {
+            if (!input.files || input.files.length === 0) {
+              handleCancel();
+            }
+          }, 100);
+        }
+      }, 500);
+      
+      // Nettoyer le timeout si un fichier est sélectionné
+      const originalOnChange = input.onchange;
+      input.onchange = (e) => {
+        clearTimeout(timeout);
+        if (originalOnChange) originalOnChange(e);
+      };
+      
+      // Ajouter temporairement au DOM pour une meilleure compatibilité
+      input.style.position = 'fixed';
+      input.style.left = '-9999px';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
       
       input.click();
     });
@@ -308,24 +348,42 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
   const handleCapturePhoto = async (categoryId: string, pointId: string) => {
     try {
+      console.log('📸 Démarrage de la capture photo...');
       const file = await captureFromCamera('photo');
+      console.log('📸 Fichier capturé:', file.name, file.type, file.size);
+      
+      // Afficher un message de chargement
+      const loadingMsg = 'Téléchargement de la photo...';
+      
       await handleFileUpload(categoryId, pointId, file, 'photo');
+      console.log('✅ Photo téléchargée avec succès');
     } catch (error: any) {
       if (error.message !== 'Capture annulée') {
-        console.error('Erreur lors de la capture photo:', error);
-        alert('Erreur lors de la capture de la photo');
+        console.error('❌ Erreur lors de la capture photo:', error);
+        alert(`Erreur lors de la capture de la photo: ${error.message || 'Erreur inconnue'}`);
+      } else {
+        console.log('ℹ️ Capture photo annulée par l\'utilisateur');
       }
     }
   };
 
   const handleCaptureVideo = async (categoryId: string, pointId: string) => {
     try {
+      console.log('🎥 Démarrage de la capture vidéo...');
       const file = await captureFromCamera('video');
+      console.log('🎥 Fichier capturé:', file.name, file.type, file.size);
+      
+      // Afficher un message de chargement
+      const loadingMsg = 'Téléchargement de la vidéo...';
+      
       await handleFileUpload(categoryId, pointId, file, 'video');
+      console.log('✅ Vidéo téléchargée avec succès');
     } catch (error: any) {
       if (error.message !== 'Capture annulée') {
-        console.error('Erreur lors de la capture vidéo:', error);
-        alert('Erreur lors de la capture de la vidéo');
+        console.error('❌ Erreur lors de la capture vidéo:', error);
+        alert(`Erreur lors de la capture de la vidéo: ${error.message || 'Erreur inconnue'}`);
+      } else {
+        console.log('ℹ️ Capture vidéo annulée par l\'utilisateur');
       }
     }
   };
