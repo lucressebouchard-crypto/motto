@@ -114,6 +114,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   }, []);
 
   const [vehicleData, setVehicleData] = useState(vehicle);
+  const [galleryUpdateKey, setGalleryUpdateKey] = useState(0); // Force re-render de la galerie
   const [categories, setCategories] = useState<InspectionCategory[]>([
     {
       id: 'engine',
@@ -378,7 +379,9 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         // Vérifier la mise à jour
         const updatedCategory = updated.find(c => c.id === categoryId);
         const updatedPoint = updatedCategory?.points.find(p => p.id === pointId);
-        console.log('📸 Vérification - Photos dans l\'état:', updatedPoint?.photos?.length || 0);
+        console.log('📸 Vérification - Photos dans l\'état:', updatedPoint?.photos?.length || 0, updatedPoint?.photos);
+        // Forcer le re-render de la galerie
+        setGalleryUpdateKey(prev => prev + 1);
         return updated;
       });
       
@@ -587,7 +590,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
             console.log(`🎥 URLs vidéos:`, updatedPoint.videos);
           }
         }
-        
+        // Forcer le re-render de la galerie
+        setGalleryUpdateKey(prev => prev + 1);
         return updated;
       });
 
@@ -1078,6 +1082,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
                           {/* Galerie de médias */}
                           <div 
+                            key={`gallery-${category.id}-${point.id}-${galleryUpdateKey}`}
                             data-gallery={`${category.id}-${point.id}`}
                             className={`bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border-2 border-gray-200 ${((!Array.isArray(point.photos) || point.photos.length === 0) && (!Array.isArray(point.videos) || point.videos.length === 0)) ? 'border-dashed' : ''}`}
                           >
@@ -1115,7 +1120,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                                       📷
                                     </div>
                                   </div>
-                                ))}
+                                  );
+                                })}
                                 
                                 {/* Vidéos */}
                                 {Array.isArray(point.videos) && point.videos.length > 0 && point.videos.map((video, idx) => (
