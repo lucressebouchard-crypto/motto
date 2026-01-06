@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   X, Plus, Upload, Camera, Video, CheckCircle2, Circle, Download, FileText, 
   Image as ImageIcon, Trash2, ArrowLeft, Engine, Car, Zap, CircleDot, 
@@ -84,7 +84,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   buyer
 }) => {
   // Obtenir les niveaux de rating avec icônes React
-  const RATING_LEVELS = React.useMemo(() => RATING_LEVELS_CONFIG.map(config => ({
+  const RATING_LEVELS = useMemo(() => RATING_LEVELS_CONFIG.map(config => ({
     ...config,
     icon: config.iconName === 'AlertTriangle' ? <AlertTriangle size={16} className="inline" /> :
           config.iconName === 'MinusCircle' ? <MinusCircle size={16} className="inline" /> :
@@ -94,7 +94,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   })), []);
 
   // Obtenir la configuration des catégories avec icônes React
-  const CATEGORY_CONFIG = React.useMemo(() => {
+  const CATEGORY_CONFIG = useMemo(() => {
     const iconMap: Record<string, React.ReactNode> = {
       Engine: <Engine size={24} />,
       Car: <Car size={24} />,
@@ -584,7 +584,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   };
 
   // Recalculer le score à chaque changement
-  React.useEffect(() => {
+  useEffect(() => {
     calculateHealthScore();
   }, [categories]);
 
