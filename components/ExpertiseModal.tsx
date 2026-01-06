@@ -488,7 +488,6 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
       // Mettre à jour l'état avec l'URL distante (remplace la preview locale si elle existe)
       setCategories(prev => {
-        const updated = replaceLocalPreview(prev);
         const updated = prev.map(category => {
           if (category.id === categoryId) {
             const updatedPoints = category.points.map(point => {
