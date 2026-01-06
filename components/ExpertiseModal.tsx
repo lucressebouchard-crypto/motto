@@ -117,7 +117,6 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   const [galleryUpdateKey, setGalleryUpdateKey] = useState(0); // Force re-render de la galerie
   const [renderTrigger, setRenderTrigger] = useState(0); // Trigger pour forcer re-render
   const [viewingMedia, setViewingMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null); // Viewer d'image/vidéo
-  const [viewingMedia, setViewingMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null); // Viewer d'image/vidéo
   
   const [categories, setCategories] = useState<InspectionCategory[]>([
     {
