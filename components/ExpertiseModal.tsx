@@ -370,24 +370,9 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   const handleCaptureVideo = async (categoryId: string, pointId: string) => {
     try {
       console.log('🎥 Démarrage de la capture vidéo pour:', categoryId, pointId);
-      
-      // Trouver le point actuel pour debug
-      const currentCategory = categories.find(c => c.id === categoryId);
-      const currentPoint = currentCategory?.points.find(p => p.id === pointId);
-      console.log('🎥 Point actuel - Vidéos:', currentPoint?.videos.length || 0);
-      
       const file = await captureFromCamera('video');
       console.log('🎥 Fichier capturé:', file.name, file.type, file.size);
-      
       await handleFileUpload(categoryId, pointId, file, 'video');
-      
-      // Vérifier après l'upload
-      setTimeout(() => {
-        const updatedCategory = categories.find(c => c.id === categoryId);
-        const updatedPoint = updatedCategory?.points.find(p => p.id === pointId);
-        console.log('🎥 Point après upload - Vidéos:', updatedPoint?.videos.length || 0);
-      }, 100);
-      
       console.log('✅ Vidéo téléchargée avec succès');
     } catch (error: any) {
       if (error.message !== 'Capture annulée') {
