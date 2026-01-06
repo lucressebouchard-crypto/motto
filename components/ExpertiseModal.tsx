@@ -116,6 +116,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   const [vehicleData, setVehicleData] = useState(vehicle);
   const [galleryUpdateKey, setGalleryUpdateKey] = useState(0); // Force re-render de la galerie
   const [renderTrigger, setRenderTrigger] = useState(0); // Trigger pour forcer re-render
+  const [viewingMedia, setViewingMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null); // Viewer d'image/vidéo
+  const [viewingMedia, setViewingMedia] = useState<{ url: string; type: 'photo' | 'video' } | null>(null); // Viewer d'image/vidéo
   
   const [categories, setCategories] = useState<InspectionCategory[]>([
     {
@@ -1080,23 +1082,24 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                                       <img 
                                         src={photo} 
                                         alt={`Photo ${idx + 1}`} 
-                                        className="w-full h-full object-cover cursor-pointer"
+                                        className="w-full h-full object-cover cursor-pointer touch-manipulation"
                                         onLoad={() => console.log(`✅ [IMAGE] Image ${idx + 1} chargée:`, photo.substring(0, 50))}
                                         onError={(e) => {
                                           console.error(`❌ [IMAGE] Erreur chargement image ${idx + 1}:`, photo);
                                           (e.target as HTMLImageElement).style.display = 'none';
                                         }}
-                                        onClick={() => window.open(photo, '_blank')}
+                                        onClick={() => setViewingMedia({ url: photo, type: 'photo' })}
                                       />
+                                      {/* Bouton suppression - TOUJOURS visible sur mobile */}
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           removeMedia(category.id, point.id, photo, 'photo');
                                         }}
-                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 sm:p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all shadow-lg active:scale-90 touch-manipulation z-10"
                                         title="Supprimer"
                                       >
-                                        <Trash2 size={14} />
+                                        <Trash2 size={16} className="sm:w-3.5 sm:h-3.5" />
                                       </button>
                                       <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
                                         📷
@@ -1116,23 +1119,24 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                                     >
                                       <video 
                                         src={video} 
-                                        className="w-full h-full object-cover cursor-pointer"
+                                        className="w-full h-full object-cover cursor-pointer touch-manipulation"
                                         onLoadedData={() => console.log(`✅ [VIDEO] Vidéo ${idx + 1} chargée:`, video.substring(0, 50))}
                                         onError={(e) => {
                                           console.error(`❌ [VIDEO] Erreur chargement vidéo ${idx + 1}:`, video);
                                           (e.target as HTMLVideoElement).style.display = 'none';
                                         }}
-                                        onClick={() => window.open(video, '_blank')}
+                                        onClick={() => setViewingMedia({ url: video, type: 'video' })}
                                       />
+                                      {/* Bouton suppression - TOUJOURS visible sur mobile */}
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           removeMedia(category.id, point.id, video, 'video');
                                         }}
-                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 sm:p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all shadow-lg active:scale-90 touch-manipulation z-10"
                                         title="Supprimer"
                                       >
-                                        <Trash2 size={14} />
+                                        <Trash2 size={16} className="sm:w-3.5 sm:h-3.5" />
                                       </button>
                                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                         <div className="bg-black/60 rounded-full p-2">
@@ -1332,6 +1336,48 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         </div>
         </div>
       </div>
+
+      {/* Viewer d'image/vidéo en plein écran (Mobile First) */}
+      {viewingMedia && (
+        <div 
+          className="fixed inset-0 z-[200] bg-black flex flex-col"
+          onClick={() => setViewingMedia(null)}
+        >
+          {/* Header avec flèche de retour - Fixe en haut */}
+          <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewingMedia(null);
+              }}
+              className="bg-white/20 backdrop-blur-md rounded-full p-3 text-white active:scale-95 transition-transform touch-manipulation"
+              aria-label="Retour"
+            >
+              <ArrowLeft size={24} />
+            </button>
+          </div>
+
+          {/* Media en plein écran */}
+          <div className="flex-1 flex items-center justify-center p-4 touch-manipulation">
+            {viewingMedia.type === 'photo' ? (
+              <img 
+                src={viewingMedia.url} 
+                alt="Photo en plein écran"
+                className="max-w-full max-h-full object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <video 
+                src={viewingMedia.url} 
+                controls
+                autoPlay
+                className="max-w-full max-h-full"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
