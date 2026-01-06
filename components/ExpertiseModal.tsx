@@ -1023,7 +1023,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                         </div>
 
                         {/* Capture Buttons (Camera only) */}
-                        <div className="mt-3 flex gap-2">
+                        <div className="mt-4 flex gap-2">
                           <button
                             onClick={() => handleCapturePhoto(category.id, point.id)}
                             className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-xl text-xs font-black hover:from-indigo-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
