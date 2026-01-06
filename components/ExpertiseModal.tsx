@@ -1079,9 +1079,9 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                           {/* Galerie de médias */}
                           <div 
                             data-gallery={`${category.id}-${point.id}`}
-                            className={`bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border-2 border-gray-200 ${point.photos.length === 0 && point.videos.length === 0 ? 'border-dashed' : ''}`}
+                            className={`bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border-2 border-gray-200 ${((!Array.isArray(point.photos) || point.photos.length === 0) && (!Array.isArray(point.videos) || point.videos.length === 0)) ? 'border-dashed' : ''}`}
                           >
-                            {point.photos.length === 0 && point.videos.length === 0 ? (
+                            {((!Array.isArray(point.photos) || point.photos.length === 0) && (!Array.isArray(point.videos) || point.videos.length === 0)) ? (
                               <div className="text-center py-4">
                                 <p className="text-xs text-gray-400 font-medium italic">
                                   Aucun média pour le moment
