@@ -349,139 +349,145 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
   const handleCapturePhoto = async (categoryId: string, pointId: string) => {
     try {
-      console.log('📸 Démarrage de la capture photo...');
+      console.log('📸 [CAPTURE] Démarrage capture photo');
       const file = await captureFromCamera('photo');
-      console.log('📸 Fichier capturé:', file.name, file.type, file.size);
+      console.log('📸 [CAPTURE] Fichier obtenu:', file.name, file.size, 'bytes');
       
-      // Créer une preview locale immédiate
-      const localPreview = URL.createObjectURL(file);
-      console.log('📸 Preview locale créée:', localPreview);
+      // Créer preview locale IMMÉDIATEMENT
+      const blobUrl = URL.createObjectURL(file);
+      console.log('📸 [PREVIEW] Blob URL créée:', blobUrl);
       
-      // Ajouter la preview locale immédiatement à l'état
-      setCategories(prev => {
-        const updated = prev.map(category => {
-          if (category.id === categoryId) {
-            return {
-              ...category,
-              points: category.points.map(point => {
-                if (point.id === pointId) {
-                  const currentPhotos = Array.isArray(point.photos) ? point.photos : [];
-                  console.log('📸 Ajout preview locale - Avant:', currentPhotos.length);
-                  return { ...point, photos: [...currentPhotos, localPreview] };
-                }
-                return point;
-              })
-            };
-          }
-          return category;
+      // Mise à jour IMMÉDIATE de l'état avec la preview
+      setCategories(prevCategories => {
+        console.log('📸 [STATE] Mise à jour état avec preview locale');
+        const newCategories = prevCategories.map(cat => {
+          if (cat.id !== categoryId) return cat;
+          
+          const newPoints = cat.points.map(pt => {
+            if (pt.id !== pointId) return pt;
+            
+            const existingPhotos = Array.isArray(pt.photos) ? [...pt.photos] : [];
+            const newPhotos = [...existingPhotos, blobUrl];
+            console.log('📸 [STATE] Point trouvé - Photos avant:', existingPhotos.length, 'après:', newPhotos.length);
+            
+            return { ...pt, photos: newPhotos };
+          });
+          
+          return { ...cat, points: newPoints };
         });
-        console.log('📸 Preview locale ajoutée à l\'état');
-        // Vérifier la mise à jour
-        const updatedCategory = updated.find(c => c.id === categoryId);
-        const updatedPoint = updatedCategory?.points.find(p => p.id === pointId);
-        console.log('📸 Vérification - Photos dans l\'état:', updatedPoint?.photos?.length || 0, updatedPoint?.photos);
-        // Forcer le re-render de la galerie
-        setGalleryUpdateKey(prev => prev + 1);
-        return updated;
+        
+        // Vérification immédiate
+        const checkCategory = newCategories.find(c => c.id === categoryId);
+        const checkPoint = checkCategory?.points.find(p => p.id === pointId);
+        console.log('📸 [STATE] Vérification après update - Photos:', checkPoint?.photos?.length || 0);
+        console.log('📸 [STATE] URLs:', checkPoint?.photos);
+        
+        return newCategories;
       });
       
-      // Upload en arrière-plan puis remplacer la preview locale par l'URL distante
-      try {
-        await handleFileUpload(categoryId, pointId, file, 'photo');
-        console.log('✅ Photo téléchargée avec succès');
-      } catch (uploadError) {
-        // En cas d'erreur d'upload, retirer la preview locale
-        setCategories(prev => {
-          return prev.map(category => {
-            if (category.id === categoryId) {
-              return {
-                ...category,
-                points: category.points.map(point => {
-                  if (point.id === pointId) {
-                    const photos = Array.isArray(point.photos) ? point.photos : [];
-                    return { ...point, photos: photos.filter(p => p !== localPreview) };
-                  }
-                  return point;
-                })
-              };
-            }
-            return category;
-          });
-        });
-        throw uploadError;
-      }
+      // Forcer re-render IMMÉDIAT
+      setGalleryUpdateKey(k => {
+        const newKey = k + 1;
+        console.log('📸 [RENDER] Force re-render avec clé:', newKey);
+        return newKey;
+      });
+      
+      // Upload en arrière-plan
+      handleFileUpload(categoryId, pointId, file, 'photo').then(() => {
+        console.log('✅ [UPLOAD] Upload terminé avec succès');
+      }).catch(uploadError => {
+        console.error('❌ [UPLOAD] Erreur upload:', uploadError);
+        // Retirer la preview en cas d'erreur
+        setCategories(prev => prev.map(cat => {
+          if (cat.id !== categoryId) return cat;
+          return {
+            ...cat,
+            points: cat.points.map(pt => {
+              if (pt.id !== pointId) return pt;
+              const photos = (Array.isArray(pt.photos) ? pt.photos : []).filter(p => p !== blobUrl);
+              return { ...pt, photos };
+            })
+          };
+        }));
+        alert(`Erreur lors de l'upload: ${uploadError.message}`);
+      });
+      
     } catch (error: any) {
       if (error.message !== 'Capture annulée') {
-        console.error('❌ Erreur lors de la capture photo:', error);
-        alert(`Erreur lors de la capture de la photo: ${error.message || 'Erreur inconnue'}`);
-      } else {
-        console.log('ℹ️ Capture photo annulée par l\'utilisateur');
+        console.error('❌ [ERROR] Erreur capture:', error);
+        alert(`Erreur: ${error.message || 'Erreur inconnue'}`);
       }
     }
   };
 
   const handleCaptureVideo = async (categoryId: string, pointId: string) => {
     try {
-      console.log('🎥 Démarrage de la capture vidéo...');
+      console.log('🎥 [CAPTURE] Démarrage capture vidéo');
       const file = await captureFromCamera('video');
-      console.log('🎥 Fichier capturé:', file.name, file.type, file.size);
+      console.log('🎥 [CAPTURE] Fichier obtenu:', file.name, file.size, 'bytes');
       
-      // Créer une preview locale immédiate
-      const localPreview = URL.createObjectURL(file);
-      console.log('🎥 Preview locale créée:', localPreview);
+      // Créer preview locale IMMÉDIATEMENT
+      const blobUrl = URL.createObjectURL(file);
+      console.log('🎥 [PREVIEW] Blob URL créée:', blobUrl);
       
-      // Ajouter la preview locale immédiatement à l'état
-      setCategories(prev => {
-        const updated = prev.map(category => {
-          if (category.id === categoryId) {
-            return {
-              ...category,
-              points: category.points.map(point => {
-                if (point.id === pointId) {
-                  const currentVideos = Array.isArray(point.videos) ? point.videos : [];
-                  return { ...point, videos: [...currentVideos, localPreview] };
-                }
-                return point;
-              })
-            };
-          }
-          return category;
+      // Mise à jour IMMÉDIATE de l'état avec la preview
+      setCategories(prevCategories => {
+        console.log('🎥 [STATE] Mise à jour état avec preview locale');
+        const newCategories = prevCategories.map(cat => {
+          if (cat.id !== categoryId) return cat;
+          
+          const newPoints = cat.points.map(pt => {
+            if (pt.id !== pointId) return pt;
+            
+            const existingVideos = Array.isArray(pt.videos) ? [...pt.videos] : [];
+            const newVideos = [...existingVideos, blobUrl];
+            console.log('🎥 [STATE] Point trouvé - Vidéos avant:', existingVideos.length, 'après:', newVideos.length);
+            
+            return { ...pt, videos: newVideos };
+          });
+          
+          return { ...cat, points: newPoints };
         });
-        console.log('🎥 Preview locale ajoutée à l\'état');
-        return updated;
+        
+        // Vérification immédiate
+        const checkCategory = newCategories.find(c => c.id === categoryId);
+        const checkPoint = checkCategory?.points.find(p => p.id === pointId);
+        console.log('🎥 [STATE] Vérification après update - Vidéos:', checkPoint?.videos?.length || 0);
+        
+        return newCategories;
       });
       
-      // Upload en arrière-plan puis remplacer la preview locale par l'URL distante
-      try {
-        await handleFileUpload(categoryId, pointId, file, 'video');
-        console.log('✅ Vidéo téléchargée avec succès');
-      } catch (uploadError) {
-        // En cas d'erreur d'upload, retirer la preview locale
-        setCategories(prev => {
-          return prev.map(category => {
-            if (category.id === categoryId) {
-              return {
-                ...category,
-                points: category.points.map(point => {
-                  if (point.id === pointId) {
-                    const videos = Array.isArray(point.videos) ? point.videos : [];
-                    return { ...point, videos: videos.filter(v => v !== localPreview) };
-                  }
-                  return point;
-                })
-              };
-            }
-            return category;
-          });
-        });
-        throw uploadError;
-      }
+      // Forcer re-render IMMÉDIAT
+      setGalleryUpdateKey(k => {
+        const newKey = k + 1;
+        console.log('🎥 [RENDER] Force re-render avec clé:', newKey);
+        return newKey;
+      });
+      
+      // Upload en arrière-plan
+      handleFileUpload(categoryId, pointId, file, 'video').then(() => {
+        console.log('✅ [UPLOAD] Upload terminé avec succès');
+      }).catch(uploadError => {
+        console.error('❌ [UPLOAD] Erreur upload:', uploadError);
+        // Retirer la preview en cas d'erreur
+        setCategories(prev => prev.map(cat => {
+          if (cat.id !== categoryId) return cat;
+          return {
+            ...cat,
+            points: cat.points.map(pt => {
+              if (pt.id !== pointId) return pt;
+              const videos = (Array.isArray(pt.videos) ? pt.videos : []).filter(v => v !== blobUrl);
+              return { ...pt, videos };
+            })
+          };
+        }));
+        alert(`Erreur lors de l'upload: ${uploadError.message}`);
+      });
+      
     } catch (error: any) {
       if (error.message !== 'Capture annulée') {
-        console.error('❌ Erreur lors de la capture vidéo:', error);
-        alert(`Erreur lors de la capture de la vidéo: ${error.message || 'Erreur inconnue'}`);
-      } else {
-        console.log('ℹ️ Capture vidéo annulée par l\'utilisateur');
+        console.error('❌ [ERROR] Erreur capture:', error);
+        alert(`Erreur: ${error.message || 'Erreur inconnue'}`);
       }
     }
   };
@@ -539,60 +545,36 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
       console.log(`✅ URL obtenue: ${url}`);
       console.log(`📝 Mise à jour de l'état pour categoryId: ${categoryId}, pointId: ${pointId}, type: ${type}`);
 
-      // Mettre à jour l'état avec l'URL distante (remplace la preview locale si elle existe)
+      // Remplacer preview locale par URL distante
       setCategories(prev => {
-        const updated = prev.map(category => {
-          if (category.id === categoryId) {
-            const updatedPoints = category.points.map(point => {
-              if (point.id === pointId) {
-                if (type === 'photo') {
-                  const photos = Array.isArray(point.photos) ? point.photos : [];
-                  // Remplacer les previews locales (blob:) par l'URL distante
-                  const updatedPhotos = photos.map(p => (typeof p === 'string' && p.startsWith('blob:')) ? url : p);
-                  // Si l'URL n'est pas déjà présente, l'ajouter
-                  if (!updatedPhotos.includes(url)) {
-                    updatedPhotos.push(url);
-                  }
-                  console.log(`📸 Remplacement preview locale par URL distante. Photos: ${updatedPhotos.length}`);
-                  return { ...point, photos: updatedPhotos };
-                } else {
-                  const videos = Array.isArray(point.videos) ? point.videos : [];
-                  const updatedVideos = videos.map(v => (typeof v === 'string' && v.startsWith('blob:')) ? url : v);
-                  if (!updatedVideos.includes(url)) {
-                    updatedVideos.push(url);
-                  }
-                  console.log(`🎥 Remplacement preview locale par URL distante. Vidéos: ${updatedVideos.length}`);
-                  return { ...point, videos: updatedVideos };
-                }
-              }
-              // Retourner le point tel quel si ce n'est pas le bon point
-              return point;
-            });
+        const newCategories = prev.map(cat => {
+          if (cat.id !== categoryId) return cat;
+          
+          const newPoints = cat.points.map(pt => {
+            if (pt.id !== pointId) return pt;
             
-            // Créer une nouvelle catégorie avec les points mis à jour
-            return {
-              ...category,
-              points: updatedPoints
-            };
-          }
-          // Retourner la catégorie telle quelle si ce n'est pas la bonne catégorie
-          return category;
+            if (type === 'photo') {
+              const photos = Array.isArray(pt.photos) ? [...pt.photos] : [];
+              // Remplacer blob: par URL distante
+              const updatedPhotos = photos.map(p => (typeof p === 'string' && p.startsWith('blob:')) ? url : p);
+              // Si URL pas présente, l'ajouter
+              if (!updatedPhotos.includes(url)) updatedPhotos.push(url);
+              console.log(`📸 [REPLACE] Remplacement blob par URL. Total: ${updatedPhotos.length}`);
+              return { ...pt, photos: updatedPhotos };
+            } else {
+              const videos = Array.isArray(pt.videos) ? [...pt.videos] : [];
+              const updatedVideos = videos.map(v => (typeof v === 'string' && v.startsWith('blob:')) ? url : v);
+              if (!updatedVideos.includes(url)) updatedVideos.push(url);
+              console.log(`🎥 [REPLACE] Remplacement blob par URL. Total: ${updatedVideos.length}`);
+              return { ...pt, videos: updatedVideos };
+            }
+          });
+          
+          return { ...cat, points: newPoints };
         });
         
-        // Vérifier la mise à jour après le calcul
-        const updatedCategory = updated.find(c => c.id === categoryId);
-        const updatedPoint = updatedCategory?.points.find(p => p.id === pointId);
-        if (updatedPoint) {
-          console.log(`✅ État mis à jour - Photos: ${updatedPoint.photos.length}, Vidéos: ${updatedPoint.videos.length}`);
-          if (type === 'photo') {
-            console.log(`📸 URLs photos:`, updatedPoint.photos);
-          } else {
-            console.log(`🎥 URLs vidéos:`, updatedPoint.videos);
-          }
-        }
-        // Forcer le re-render de la galerie
-        setGalleryUpdateKey(prev => prev + 1);
-        return updated;
+        setGalleryUpdateKey(k => k + 1);
+        return newCategories;
       });
 
       console.log(`${type === 'photo' ? 'Photo' : 'Vidéo'} ajoutée avec succès au point`);
@@ -1093,42 +1075,43 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                                 </p>
                               </div>
                             ) : (
-                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3" key={`grid-${galleryUpdateKey}`}>
                                 {/* Photos */}
-                                {Array.isArray(point.photos) && point.photos.length > 0 && point.photos.map((photo, idx) => {
-                                  console.log(`🖼️ Rendu photo ${idx + 1}/${point.photos.length} pour point ${point.id}:`, photo);
-                                  return (
-                                    <div key={`photo-${category.id}-${point.id}-${idx}-${photo.substring(0, 30)}-${galleryUpdateKey}`} className="relative group aspect-square">
+                                {(() => {
+                                  const photos = Array.isArray(point.photos) ? point.photos : [];
+                                  console.log(`🖼️ [RENDER] Rendu galerie photos - Point: ${point.id}, Nombre: ${photos.length}, Clé: ${galleryUpdateKey}`);
+                                  return photos.length > 0 ? photos.map((photo, idx) => (
+                                    <div 
+                                      key={`photo-${category.id}-${point.id}-${idx}-${Date.now()}-${galleryUpdateKey}`} 
+                                      className="relative group aspect-square bg-gray-200 rounded-lg overflow-hidden"
+                                    >
                                       <img 
                                         src={photo} 
                                         alt={`Photo ${idx + 1}`} 
-                                        className="w-full h-full object-cover rounded-lg shadow-md cursor-pointer hover:shadow-xl transition-shadow"
-                                        onLoad={() => console.log(`✅ Image chargée:`, photo)}
+                                        className="w-full h-full object-cover cursor-pointer"
+                                        onLoad={() => console.log(`✅ [IMAGE] Image ${idx + 1} chargée:`, photo.substring(0, 50))}
                                         onError={(e) => {
-                                          console.error(`❌ Erreur chargement image:`, photo);
-                                          console.error('Erreur:', e);
+                                          console.error(`❌ [IMAGE] Erreur chargement image ${idx + 1}:`, photo);
+                                          (e.target as HTMLImageElement).style.display = 'none';
                                         }}
-                                        onClick={() => {
-                                          // Ouvrir en plein écran ou dans un viewer
-                                          window.open(photo, '_blank');
-                                        }}
+                                        onClick={() => window.open(photo, '_blank')}
                                       />
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeMedia(category.id, point.id, photo, 'photo');
-                                      }}
-                                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:bg-red-600 hover:scale-110"
-                                      title="Supprimer"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                    <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                      📷
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          removeMedia(category.id, point.id, photo, 'photo');
+                                        }}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                                        title="Supprimer"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                      <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                        📷
+                                      </div>
                                     </div>
-                                  </div>
-                                  );
-                                })}
+                                  )) : null;
+                                })()}
                                 
                                 {/* Vidéos */}
                                 {Array.isArray(point.videos) && point.videos.length > 0 && point.videos.map((video, idx) => (
