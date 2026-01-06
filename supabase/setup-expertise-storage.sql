@@ -13,17 +13,20 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Politiques pour expertise-media
 -- Permettre aux mécaniciens authentifiés d'uploader dans leur dossier
-CREATE POLICY IF NOT EXISTS "Mechanics can upload expertise media"
+-- Le format du chemin est: expertise/{user_id}/{filename}
+DROP POLICY IF EXISTS "Mechanics can upload expertise media" ON storage.objects;
+
+CREATE POLICY "Mechanics can upload expertise media"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (
   bucket_id = 'expertise-media' AND
   (
-    -- Permettre si le premier dossier est l'ID de l'utilisateur
-    (storage.foldername(name))[1] = auth.uid()::text
+    -- Vérifier que le chemin commence par "expertise/" suivi de l'ID utilisateur
+    name LIKE 'expertise/' || auth.uid()::text || '/%'
     OR
-    -- Permettre si le chemin contient l'ID de l'utilisateur (cas: expertise/userid/filename)
-    name LIKE auth.uid()::text || '/%'
+    -- Vérifier que le deuxième dossier est l'ID de l'utilisateur
+    (storage.foldername(name))[2] = auth.uid()::text
   )
 );
 
@@ -32,12 +35,18 @@ ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'expertise-media');
 
-CREATE POLICY IF NOT EXISTS "Mechanics can delete their expertise media"
+DROP POLICY IF EXISTS "Mechanics can delete their expertise media" ON storage.objects;
+
+CREATE POLICY "Mechanics can delete their expertise media"
 ON storage.objects FOR DELETE
 TO authenticated
 USING (
   bucket_id = 'expertise-media' AND
-  (storage.foldername(name))[1] = auth.uid()::text
+  (
+    name LIKE 'expertise/' || auth.uid()::text || '/%'
+    OR
+    (storage.foldername(name))[2] = auth.uid()::text
+  )
 );
 
 -- Politiques pour expertise-reports
