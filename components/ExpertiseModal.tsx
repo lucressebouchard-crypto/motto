@@ -395,33 +395,63 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
     type: 'photo' | 'video'
   ) => {
     try {
-      const fileExt = file.name.split('.').pop();
+      // Valider le type de fichier
+      if (type === 'photo' && !file.type.startsWith('image/')) {
+        throw new Error('Le fichier sélectionné n\'est pas une image');
+      }
+      if (type === 'video' && !file.type.startsWith('video/')) {
+        throw new Error('Le fichier sélectionné n\'est pas une vidéo');
+      }
+
+      // Valider la taille (max 10MB pour photos, 50MB pour vidéos)
+      const maxSize = type === 'photo' ? 10 * 1024 * 1024 : 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        throw new Error(`Le fichier est trop volumineux (max: ${type === 'photo' ? '10MB' : '50MB'})`);
+      }
+
+      const fileExt = file.name.split('.').pop() || (type === 'photo' ? 'jpg' : 'mp4');
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `expertise/${mechanic.id}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      console.log(`📤 Upload ${type} vers: ${filePath}`);
+
+      // Upload vers Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('expertise-media')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('❌ Erreur upload Supabase:', uploadError);
+        throw new Error(`Erreur lors du téléchargement: ${uploadError.message}`);
+      }
 
-      const { data } = supabase.storage
+      // Obtenir l'URL publique
+      const { data: urlData } = supabase.storage
         .from('expertise-media')
         .getPublicUrl(filePath);
 
-      const url = data.publicUrl;
+      if (!urlData?.publicUrl) {
+        throw new Error('Impossible d\'obtenir l\'URL publique du fichier');
+      }
 
+      const url = urlData.publicUrl;
+      console.log(`✅ URL obtenue: ${url}`);
+
+      // Mettre à jour l'état avec la nouvelle URL
       setCategories(prev => prev.map(category => {
         if (category.id === categoryId) {
           return {
             ...category,
             points: category.points.map(point => {
               if (point.id === pointId) {
-                return {
-                  ...point,
-                  photos: type === 'photo' ? [...point.photos, url] : point.photos,
-                  videos: type === 'video' ? [...point.videos, url] : point.videos,
-                };
+                if (type === 'photo') {
+                  return { ...point, photos: [...point.photos, url] };
+                } else {
+                  return { ...point, videos: [...point.videos, url] };
+                }
               }
               return point;
             })
@@ -429,9 +459,13 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         }
         return category;
       }));
-    } catch (error) {
-      console.error('Erreur lors de l\'upload:', error);
-      alert('Erreur lors de l\'upload du fichier');
+
+      console.log(`${type === 'photo' ? 'Photo' : 'Vidéo'} ajoutée avec succès au point`);
+    } catch (error: any) {
+      console.error('❌ Erreur lors de l\'upload:', error);
+      const errorMessage = error?.message || 'Erreur lors de l\'upload du fichier';
+      alert(errorMessage);
+      throw error;
     }
   };
 
