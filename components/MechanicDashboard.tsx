@@ -114,68 +114,72 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
       case 'inventory':
         return <InventoryView />;
       case 'expertise':
-        return isCreatingExpertise ? (
-          <ExpertiseModal
-            onClose={() => {
-              setIsCreatingExpertise(false);
-              setActiveView('overview');
-            }}
-            onSubmit={async (expertiseData) => {
-              try {
-                // Sauvegarder l'expertise dans la base de données
-                const { data, error } = await supabase
-                  .from('expertises')
-                  .insert([
-                    {
-                      mechanic_id: expertiseData.mechanicId,
-                      buyer_id: expertiseData.buyerId || null,
-                      vehicle_make: expertiseData.vehicle.make,
-                      vehicle_model: expertiseData.vehicle.model,
-                      vehicle_year: expertiseData.vehicle.year,
-                      vehicle_plate: expertiseData.vehicle.plateNumber,
-                      health_score: expertiseData.healthScore,
-                      recommendations: expertiseData.recommendations,
-                      inspection_data: expertiseData.inspectionCategories,
-                      pdf_url: expertiseData.pdfUrl,
-                      created_at: new Date().toISOString(),
-                    }
-                  ])
-                  .select()
-                  .single();
-
-                if (error) throw error;
-
-                // Envoyer une notification au buyer s'il y en a un
-                if (expertiseData.buyerId) {
-                  await notificationService.create({
-                    userId: expertiseData.buyerId,
-                    title: 'Nouveau Rapport d\'Expertise',
-                    body: `Votre rapport d'expertise pour ${expertiseData.vehicle.make} ${expertiseData.vehicle.model} est disponible. Score de santé: ${expertiseData.healthScore}%`
-                  });
-                }
-
-                setIsCreatingExpertise(false);
-                setActiveView('overview');
-                // Optionnel: afficher un message de succès
-                alert('Rapport d\'expertise généré et envoyé avec succès !');
-              } catch (error) {
-                console.error('Erreur lors de la sauvegarde de l\'expertise:', error);
-                alert('Erreur lors de la sauvegarde de l\'expertise');
-              }
-            }}
-            mechanic={user}
-          />
-        ) : null;
+        return null; // Géré directement dans le return principal
       default:
         return <OverviewView user={user} stats={stats} appointments={appointments} onOpenExpertise={() => { setIsCreatingExpertise(true); setActiveView('expertise'); }} />;
     }
   };
 
+  // Si on est en vue expertise, on retourne directement ExpertiseModal en plein écran
+  if (activeView === 'expertise' && isCreatingExpertise) {
+    return (
+      <ExpertiseModal
+        onClose={() => {
+          setIsCreatingExpertise(false);
+          setActiveView('overview');
+        }}
+        onSubmit={async (expertiseData) => {
+          try {
+            // Sauvegarder l'expertise dans la base de données
+            const { data, error } = await supabase
+              .from('expertises')
+              .insert([
+                {
+                  mechanic_id: expertiseData.mechanicId,
+                  buyer_id: expertiseData.buyerId || null,
+                  vehicle_make: expertiseData.vehicle.make,
+                  vehicle_model: expertiseData.vehicle.model,
+                  vehicle_year: expertiseData.vehicle.year,
+                  vehicle_plate: expertiseData.vehicle.plateNumber,
+                  health_score: expertiseData.healthScore,
+                  recommendations: expertiseData.recommendations,
+                  inspection_data: expertiseData.inspectionCategories,
+                  pdf_url: expertiseData.pdfUrl,
+                  created_at: new Date().toISOString(),
+                }
+              ])
+              .select()
+              .single();
+
+            if (error) throw error;
+
+            // Envoyer une notification au buyer s'il y en a un
+            if (expertiseData.buyerId) {
+              await notificationService.create({
+                userId: expertiseData.buyerId,
+                title: 'Nouveau Rapport d\'Expertise',
+                body: `Votre rapport d'expertise pour ${expertiseData.vehicle.make} ${expertiseData.vehicle.model} est disponible. Score de santé: ${expertiseData.healthScore}%`
+              });
+            }
+
+            setIsCreatingExpertise(false);
+            setActiveView('overview');
+            // Optionnel: afficher un message de succès
+            alert('Rapport d\'expertise généré et envoyé avec succès !');
+          } catch (error) {
+            console.error('Erreur lors de la sauvegarde de l\'expertise:', error);
+            alert('Erreur lors de la sauvegarde de l\'expertise');
+          }
+        }}
+        mechanic={user}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50/50 flex flex-col lg:flex-row relative overflow-x-hidden">
-      {/* Sidebar - Masqué pour la vue expertise */}
-      {activeView !== 'expertise' && (
-        <aside 
+      {/* Sidebar */}
+      <aside 
           className={`
             fixed inset-y-0 left-0 z-[100] w-72 bg-white shadow-[20px_0_60px_rgba(0,0,0,0.1)] border-r border-gray-100 flex flex-col
             transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
@@ -219,7 +223,7 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
       </aside>
 
       {/* Backdrop for mobile navigation */}
-      {isNavExpanded && activeView !== 'expertise' && (
+      {isNavExpanded && (
         <div 
           className="fixed inset-0 bg-indigo-900/40 backdrop-blur-sm z-[90] lg:hidden animate-in fade-in duration-300" 
           onClick={() => setIsNavExpanded(false)} 
@@ -228,30 +232,24 @@ const MechanicDashboard: React.FC<MechanicDashboardProps> = ({ user, onLogout, o
 
       {/* Main Content */}
       <main className="flex-1 min-w-0 flex flex-col relative">
-        {/* Mobile Header with Menu Button - Masqué pour la vue expertise */}
-        {activeView !== 'expertise' && (
-          <div className="lg:hidden bg-indigo-900 text-white p-6 fixed top-0 left-0 right-0 z-50 flex justify-between items-center shadow-lg">
-            <div className="flex items-center gap-4">
-               <button 
-                 onClick={() => setIsNavExpanded(true)} 
-                 className="p-3 bg-white/10 rounded-2xl active:scale-90 transition-all"
-               >
-                 <Menu size={24}/>
-               </button>
-               <h2 className="font-black tracking-tight text-lg">PRO Dashboard</h2>
-            </div>
-            <button className="p-3 bg-white/10 rounded-2xl"><Settings size={20}/></button>
+        {/* Mobile Header with Menu Button */}
+        <div className="lg:hidden bg-indigo-900 text-white p-6 fixed top-0 left-0 right-0 z-50 flex justify-between items-center shadow-lg">
+          <div className="flex items-center gap-4">
+             <button 
+               onClick={() => setIsNavExpanded(true)} 
+               className="p-3 bg-white/10 rounded-2xl active:scale-90 transition-all"
+             >
+               <Menu size={24}/>
+             </button>
+             <h2 className="font-black tracking-tight text-lg">PRO Dashboard</h2>
           </div>
-        )}
+          <button className="p-3 bg-white/10 rounded-2xl"><Settings size={20}/></button>
+        </div>
 
-        {/* Contenu - Vue expertise prend tout l'écran, autres vues ont le padding */}
-        {activeView === 'expertise' ? (
-          renderView()
-        ) : (
-          <div className="p-4 sm:p-8 lg:p-12 space-y-8 max-w-6xl mx-auto w-full pt-24 lg:pt-12">
-            {renderView()}
-          </div>
-        )}
+        {/* Contenu */}
+        <div className="p-4 sm:p-8 lg:p-12 space-y-8 max-w-6xl mx-auto w-full pt-24 lg:pt-12">
+          {renderView()}
+        </div>
       </main>
 
       {isAddingAppointment && (
