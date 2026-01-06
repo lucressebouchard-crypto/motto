@@ -785,7 +785,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
                   </div>
                 </div>
                 <div className={`px-4 py-2 rounded-xl ${categoryConfig.bgColor}/20 ${categoryConfig.color} font-black text-sm`}>
-                  Poids: {category.weight}
+                  Points: {category.points.filter(p => p.rating !== null).length}/{category.points.length}
                 </div>
               </div>
 
