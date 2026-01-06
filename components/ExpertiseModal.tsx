@@ -513,7 +513,10 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
       if (uploadError) {
         console.error('❌ Erreur upload Supabase:', uploadError);
-        throw new Error(`Erreur lors du téléchargement: ${uploadError.message}`);
+        // Ne pas throw pour éviter d'afficher le modal d'erreur
+        // La preview locale sera conservée
+        console.warn('⚠️ Upload échoué, preview locale conservée');
+        return; // Sortir silencieusement
       }
 
       // Obtenir l'URL publique
@@ -522,7 +525,9 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         .getPublicUrl(filePath);
 
       if (!urlData?.publicUrl) {
-        throw new Error('Impossible d\'obtenir l\'URL publique du fichier');
+        console.error('❌ Impossible d\'obtenir l\'URL publique du fichier');
+        console.warn('⚠️ Upload réussi mais URL non disponible, preview locale conservée');
+        return; // Sortir silencieusement, la preview locale reste visible
       }
 
       const url = urlData.publicUrl;
