@@ -115,6 +115,14 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
   const [vehicleData, setVehicleData] = useState(vehicle);
   const [galleryUpdateKey, setGalleryUpdateKey] = useState(0); // Force re-render de la galerie
+  const [renderTrigger, setRenderTrigger] = useState(0); // Trigger pour forcer re-render
+  
+  // Force re-render quand les catégories changent
+  useEffect(() => {
+    console.log('🔄 [EFFECT] Catégories mises à jour, trigger re-render');
+    setRenderTrigger(prev => prev + 1);
+  }, [categories]);
+  
   const [categories, setCategories] = useState<InspectionCategory[]>([
     {
       id: 'engine',
