@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { 
   X, Plus, Upload, Camera, Video, CheckCircle2, Circle, Download, FileText, 
   Image as ImageIcon, Trash2, ArrowLeft, Engine, Car, Zap, CircleDot, 
@@ -189,7 +189,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Calcul du Score de Santé Global basé sur les notes individuelles
-  const calculateHealthScore = () => {
+  const calculateHealthScore = useCallback(() => {
     let totalWeightedScore = 0;
     let totalWeight = 0;
     const newRecommendations: string[] = [];
@@ -586,7 +586,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   // Recalculer le score à chaque changement
   useEffect(() => {
     calculateHealthScore();
-  }, [categories]);
+  }, [calculateHealthScore]);
 
   // Animation du score
   useEffect(() => {
