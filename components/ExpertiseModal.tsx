@@ -543,8 +543,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header avec bouton retour */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
+      {/* Header avec bouton retour - Fixe en haut */}
+      <div className="bg-white border-b border-gray-100 fixed top-0 left-0 right-0 z-50 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-4">
             <button
@@ -561,8 +561,8 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
         </div>
       </div>
 
-      {/* Contenu scrollable */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Contenu scrollable - Avec padding-top pour compenser le header fixe */}
+      <div className="flex-1 overflow-y-auto pt-[88px]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 
         {/* Vehicle Info */}
