@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { 
   X, Plus, Upload, Camera, Video, CheckCircle2, Circle, Download, FileText, 
-  Image as ImageIcon, Trash2, ArrowLeft, Engine, Car, Zap, CircleDot, 
+  Image as ImageIcon, Trash2, ArrowLeft, Cog, Car, Zap, CircleDot, 
   Settings, Wrench, AlertTriangle, AlertCircle, CheckCircle, 
   MinusCircle, Clock, RefreshCw, Sparkles, Activity, TrendingUp
 } from 'lucide-react';
@@ -32,7 +32,7 @@ const RATING_LEVELS_CONFIG: Array<{ value: RatingLevel; label: string; color: st
 ];
 
 const CATEGORY_CONFIG_DATA: Record<string, { color: string; gradient: string; bgColor: string; iconName: string }> = {
-  engine: { color: 'text-red-600', gradient: 'from-red-50 via-orange-50 to-red-100', bgColor: 'bg-red-500', iconName: 'Engine' },
+  engine: { color: 'text-red-600', gradient: 'from-red-50 via-orange-50 to-red-100', bgColor: 'bg-red-500', iconName: 'Cog' },
   body: { color: 'text-blue-600', gradient: 'from-blue-50 via-indigo-50 to-blue-100', bgColor: 'bg-blue-500', iconName: 'Car' },
   electronics: { color: 'text-yellow-600', gradient: 'from-yellow-50 via-amber-50 to-yellow-100', bgColor: 'bg-yellow-500', iconName: 'Zap' },
   tires: { color: 'text-purple-600', gradient: 'from-purple-50 via-pink-50 to-purple-100', bgColor: 'bg-purple-500', iconName: 'CircleDot' },
@@ -96,7 +96,7 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
   // Obtenir la configuration des catégories avec icônes React
   const CATEGORY_CONFIG = useMemo(() => {
     const iconMap: Record<string, React.ReactNode> = {
-      Engine: <Engine size={24} />,
+      Cog: <Cog size={24} />,
       Car: <Car size={24} />,
       Zap: <Zap size={24} />,
       CircleDot: <CircleDot size={24} />,
