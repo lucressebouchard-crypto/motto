@@ -485,16 +485,19 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
     try {
       // Valider le type de fichier
       if (type === 'photo' && !file.type.startsWith('image/')) {
-        throw new Error('Le fichier sélectionné n\'est pas une image');
+        console.error('❌ Le fichier sélectionné n\'est pas une image:', file.type);
+        return; // Sortir silencieusement
       }
       if (type === 'video' && !file.type.startsWith('video/')) {
-        throw new Error('Le fichier sélectionné n\'est pas une vidéo');
+        console.error('❌ Le fichier sélectionné n\'est pas une vidéo:', file.type);
+        return; // Sortir silencieusement
       }
 
       // Valider la taille (max 10MB pour photos, 50MB pour vidéos)
       const maxSize = type === 'photo' ? 10 * 1024 * 1024 : 50 * 1024 * 1024;
       if (file.size > maxSize) {
-        throw new Error(`Le fichier est trop volumineux (max: ${type === 'photo' ? '10MB' : '50MB'})`);
+        console.error(`❌ Le fichier est trop volumineux (${(file.size / 1024 / 1024).toFixed(2)}MB, max: ${type === 'photo' ? '10MB' : '50MB'})`);
+        return; // Sortir silencieusement
       }
 
       const fileExt = file.name.split('.').pop() || (type === 'photo' ? 'jpg' : 'mp4');
