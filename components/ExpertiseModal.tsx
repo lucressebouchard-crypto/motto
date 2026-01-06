@@ -285,64 +285,55 @@ const ExpertiseModal: React.FC<ExpertiseModalProps> = ({
 
   const captureFromCamera = (type: 'photo' | 'video'): Promise<File> => {
     return new Promise((resolve, reject) => {
-      // Créer un input file temporaire
+      console.log(`📷 [CAMERA] Création input pour ${type}`);
+      
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = type === 'photo' ? 'image/*' : 'video/*';
+      input.capture = 'environment';
       
-      // Utiliser l'attribut capture pour forcer la caméra (mobile)
-      // 'environment' = caméra arrière, 'user' = caméra avant
-      input.setAttribute('capture', 'environment');
+      let resolved = false;
       
-      // Nettoyer après utilisation
       const cleanup = () => {
-        input.remove();
+        try {
+          input.remove();
+        } catch (e) {
+          console.warn('Erreur cleanup:', e);
+        }
       };
       
       input.onchange = (e) => {
+        console.log(`📷 [CAMERA] onChange déclenché`);
         const file = (e.target as HTMLInputElement).files?.[0];
         cleanup();
-        if (file) {
+        
+        if (file && !resolved) {
+          resolved = true;
+          console.log(`📷 [CAMERA] Fichier sélectionné:`, file.name, file.size, 'bytes');
           resolve(file);
-        } else {
+        } else if (!resolved) {
+          resolved = true;
           reject(new Error('Aucun fichier sélectionné'));
         }
       };
       
-      // Gérer l'annulation
-      const handleCancel = () => {
-        cleanup();
-        reject(new Error('Capture annulée'));
-      };
-      
-      // Pour les navigateurs qui supportent oncancel
-      input.oncancel = handleCancel;
-      
-      // Alternative: détecter si aucun fichier après un délai
-      const timeout = setTimeout(() => {
-        if (!input.files || input.files.length === 0) {
-          // Vérifier après un court délai si le dialogue est toujours ouvert
-          setTimeout(() => {
-            if (!input.files || input.files.length === 0) {
-              handleCancel();
-            }
-          }, 100);
+      input.oncancel = () => {
+        console.log(`📷 [CAMERA] Capture annulée par l'utilisateur`);
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          reject(new Error('Capture annulée'));
         }
-      }, 500);
-      
-      // Nettoyer le timeout si un fichier est sélectionné
-      const originalOnChange = input.onchange;
-      input.onchange = (e) => {
-        clearTimeout(timeout);
-        if (originalOnChange) originalOnChange(e);
       };
       
-      // Ajouter temporairement au DOM pour une meilleure compatibilité
+      // Ajouter au DOM pour compatibilité
       input.style.position = 'fixed';
       input.style.left = '-9999px';
       input.style.opacity = '0';
+      input.style.pointerEvents = 'none';
       document.body.appendChild(input);
       
+      console.log(`📷 [CAMERA] Ouverture dialogue fichier`);
       input.click();
     });
   };
